@@ -5,12 +5,33 @@ A services marketplace connecting customers with independent professionals and s
 ```
 apps/api      NestJS + Prisma + PostgreSQL. A modular monolith exposing a REST API (/api/v1) plus real-time updates (socket.io)
 apps/web      Next.js 14 (App Router) + Tailwind. Public site, customer & professional dashboards, admin
+apps/mobile   Expo (React Native) app for iOS and Android — see apps/mobile/README.md
 packages/shared  Statuses, state machines, money helpers and matching weights shared by API, web and (later) mobile
 ```
 
-## Quick start
+## Try it (Docker, one command)
 
-Requirements: Node 20+, pnpm 10, PostgreSQL 16, Redis 7 (`docker compose up -d` starts both).
+Install [Docker Desktop](https://www.docker.com/products/docker-desktop/), then from the project folder:
+
+```bash
+docker compose up --build
+```
+
+The first build takes a few minutes. When the log shows `UNRET API on http://localhost:4000`, open:
+
+| What | Address |
+|---|---|
+| Website | http://localhost:3000 |
+| Mobile app (same code as iOS/Android, running in the browser — use phone width or the browser's device mode) | http://localhost:8081 |
+| API documentation | http://localhost:4000/api/docs |
+
+Demo accounts (password `Unret-demo-2026!`): `ana.popescu@example.com` (customer), `ion.electric@example.com` (licensed electrician; in the app switch to professional mode under **Account**), `admin@unret.ro` (admin, website only). Other demo professionals are listed in `apps/api/prisma/seed.ts`.
+
+Stop with `Ctrl+C`. `docker compose down -v` also deletes the database, so the next start begins with fresh demo data.
+
+## Development setup
+
+Requirements: Node 20+, pnpm 10. Start only the database and Redis with `docker compose up -d postgres redis` (or install PostgreSQL 16 and Redis 7 yourself; for Docker, also publish port 5432 in `docker-compose.yml`).
 
 ```bash
 pnpm install
@@ -20,9 +41,8 @@ pnpm --filter @unret/api exec prisma migrate deploy
 pnpm db:seed
 pnpm --filter @unret/api dev                # http://localhost:4000/api/v1 (docs: /api/docs)
 pnpm --filter @unret/web dev                # http://localhost:3000
+pnpm --filter @unret/mobile dev             # Expo: iOS simulator, Android emulator or Expo Go
 ```
-
-Demo accounts (password `Unret-demo-2026!`): `admin@unret.ro`, `ana.popescu@example.com` (customer), `ion.electric@example.com` (licensed electrician). Other demo professionals are listed in `apps/api/prisma/seed.ts`.
 
 ## What is implemented
 
@@ -51,4 +71,3 @@ Demo accounts (password `Unret-demo-2026!`): `admin@unret.ro`, `ana.popescu@exam
 - **Notification language:** server-generated notification texts are English only.
 - **Locations:** location is chosen from a built-in city list; a geocoding provider is needed for street-level accuracy.
 - **Legal pages:** terms and privacy pages are placeholders that need legal review.
-- **Mobile app:** React Native/Expo is not built yet. The API and `packages/shared` are ready to be used by it.
