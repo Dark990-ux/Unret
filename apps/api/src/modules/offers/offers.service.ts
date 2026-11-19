@@ -235,6 +235,7 @@ export class OffersService {
         },
       },
     });
+    const locale = (await this.prisma.user.findUnique({ where: { id: user.id }, select: { preferredLanguage: true } }))?.preferredLanguage ?? 'ro';
     const now = new Date();
     return Promise.all(
       offers.map(async (o) => {
@@ -247,7 +248,7 @@ export class OffersService {
           professional: {
             id: p.id, displayName: p.businessName ?? p.user.name, headline: p.headline, city: p.city,
             avatarUrl: this.storage.signedUrl(p.user.avatarKey), ratingAvg: p.ratingAvg, ratingCount: p.ratingCount,
-            completedJobs: p.completedJobs, avgResponseMinutes: p.avgResponseMinutes, badges: this.professionals.badges(p.verifications),
+            completedJobs: p.completedJobs, avgResponseMinutes: p.avgResponseMinutes, badges: this.professionals.badges(p.verifications, locale),
             nextAvailable: nextSlots.map((s) => s.start),
           },
         };
