@@ -6,3 +6,7 @@ uploads
 *.log
 .turbo
 coverage
+.expo
+apps/mobile/dist
+apps/mobile/ios
+apps/mobile/android

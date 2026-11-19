@@ -1,0 +1,34 @@
+{
+  "expo": {
+    "name": "UNRET",
+    "slug": "unret",
+    "scheme": "unret",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "icon": "./assets/icon.png",
+    "splash": { "backgroundColor": "#047860", "resizeMode": "contain", "image": "./assets/icon.png" },
+    "ios": {
+      "bundleIdentifier": "ro.unret.app",
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "UNRET uses your photos so you can attach pictures to requests, messages and your portfolio.",
+        "NSCameraUsageDescription": "UNRET uses the camera so you can photograph the job or your work."
+      }
+    },
+    "android": {
+      "package": "ro.unret.app",
+      "adaptiveIcon": { "foregroundImage": "./assets/icon.png", "backgroundColor": "#047860" }
+    },
+    "web": { "bundler": "metro", "output": "single" },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-localization",
+      "@react-native-community/datetimepicker",
+      ["expo-notifications", { "color": "#047860" }],
+      ["expo-image-picker", { "photosPermission": "UNRET uses your photos so you can attach pictures to requests, messages and your portfolio." }]
+    ],
+    "experiments": { "typedRoutes": false }
+  }
+}

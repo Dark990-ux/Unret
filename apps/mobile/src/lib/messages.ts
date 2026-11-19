@@ -1,0 +1,22 @@
+/** Romanian strings used only by the mobile app (web strings come from @unret/shared). */
+export const mobileRo: Record<string, string> = {
+  Home: 'Acasă',
+  Account: 'Cont',
+  'Hi, {name}': 'Bună, {name}',
+  'What do you need help with?': 'Cu ce te putem ajuta?',
+  'Popular services': 'Servicii populare',
+  'Active requests': 'Cereri active',
+  'Mode': 'Mod',
+  'Customer mode': 'Mod client',
+  'Professional mode': 'Mod profesionist',
+  'Mark job as finished': 'Marchează lucrarea ca terminată',
+  'Open on the website for full editing.': 'Deschide site-ul pentru editare completă.',
+  'Pull to refresh': 'Trage pentru reîmprospătare',
+  'Administration is available on the website.': 'Administrarea este disponibilă pe site.',
+  'Add photo or PDF': 'Adaugă fotografie sau PDF',
+  'Version': 'Versiune',
+  'Choose a date': 'Alege o dată',
+  'Proposed appointment': 'Programare propusă',
+  'Sign in to continue': 'Autentifică-te pentru a continua',
+  'Duration (hours)': 'Durată (ore)',
+};
