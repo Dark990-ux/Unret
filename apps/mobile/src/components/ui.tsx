@@ -51,17 +51,17 @@ export function Row({ children, style, gap = 8 }: { children: ReactNode; style?:
 }
 
 export function Button({ title, onPress, variant = 'primary', loading, disabled, small, icon, style }: {
-  title: string; onPress?: () => void; variant?: 'primary' | 'outline' | 'ghost' | 'danger' | 'soft'; loading?: boolean; disabled?: boolean; small?: boolean; icon?: string; style?: ViewStyle;
+  title: string; onPress?: () => void; variant?: 'primary' | 'outline' | 'ghost' | 'danger' | 'soft' | 'sun' | 'glass'; loading?: boolean; disabled?: boolean; small?: boolean; icon?: string; style?: ViewStyle;
 }) {
   const t = useTheme();
-  const bg = { primary: t.brand, outline: 'transparent', ghost: 'transparent', danger: t.danger, soft: t.brandSoft }[variant];
-  const fg = { primary: t.onBrand, outline: t.text, ghost: t.soft, danger: '#fff', soft: t.brandDark }[variant];
+  const bg = { primary: t.brand, outline: 'transparent', ghost: 'transparent', danger: t.danger, soft: t.brandSoft, sun: t.sun, glass: 'rgba(255,255,255,0.14)' }[variant];
+  const fg = { primary: t.onBrand, outline: t.text, ghost: t.soft, danger: '#fff', soft: t.brandDark, sun: t.onSun, glass: '#ffffff' }[variant];
   return (
     <Pressable onPress={onPress} disabled={disabled || loading} accessibilityRole="button" accessibilityState={{ disabled: disabled || loading }}
       style={({ pressed }) => [{
         backgroundColor: bg, borderRadius: radius.md, paddingVertical: small ? 8 : 13, paddingHorizontal: small ? 12 : 16, minHeight: small ? 36 : 46,
         alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6,
-        borderWidth: variant === 'outline' ? 1 : 0, borderColor: t.line, opacity: disabled ? 0.45 : pressed ? 0.8 : 1,
+        borderWidth: variant === 'outline' || variant === 'glass' ? 1 : 0, borderColor: variant === 'glass' ? 'rgba(255,255,255,0.35)' : t.line, opacity: disabled ? 0.45 : pressed ? 0.8 : 1,
       }, style]}>
       {loading ? <ActivityIndicator color={fg} /> : <Text style={{ color: fg, fontWeight: '600', fontSize: small ? 14 : 15 }}>{icon ? `${icon}  ` : ''}{title}</Text>}
     </Pressable>
@@ -141,7 +141,7 @@ export function Sheet({ open, onClose, title, children }: { open: boolean; onClo
 }
 
 const TONES = {
-  gray: ['#eef2f0', '#43524d'], green: ['#d1faec', '#065f4d'], blue: ['#e0f2fe', '#075985'],
+  gray: ['#eeeef8', '#44466a'], green: ['#dcfce7', '#166534'], blue: ['#eeefff', '#2326ab'], sun: ['#fff4d1', '#7a5200'],
   amber: ['#fef3c7', '#92400e'], red: ['#fee2e2', '#991b1b'], violet: ['#ede9fe', '#5b21b6'],
 } as const;
 export type Tone = keyof typeof TONES;
@@ -208,7 +208,7 @@ export function Empty({ title, text, action }: { title: string; text?: string; a
 }
 
 export function Alert({ children, tone = 'red' }: { children: ReactNode; tone?: 'red' | 'green' | 'blue' | 'amber' }) {
-  const c = { red: ['#fee2e2', '#991b1b'], green: ['#d1faec', '#065f4d'], blue: ['#e0f2fe', '#075985'], amber: ['#fef3c7', '#92400e'] }[tone];
+  const c = { red: ['#fee2e2', '#991b1b'], green: ['#dcfce7', '#166534'], blue: ['#eeefff', '#2326ab'], amber: ['#fef3c7', '#92400e'] }[tone];
   return <View style={{ backgroundColor: c[0], borderRadius: radius.md, padding: 12 }} accessibilityRole={tone === 'red' ? 'alert' : undefined}><RNText style={{ color: c[1], fontSize: 14 }}>{children}</RNText></View>;
 }
 

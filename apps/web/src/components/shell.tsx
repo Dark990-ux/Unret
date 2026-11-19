@@ -16,7 +16,10 @@ import { Avatar, Button, PageLoader, cx } from './ui';
 export function Logo({ className }: { className?: string }) {
   return (
     <Link href="/" className={cx('inline-flex items-center gap-2 font-semibold tracking-tight text-ink dark:text-white', className)} aria-label="UNRET">
-      <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-brand-700 text-sm font-bold text-white">U</span>
+      <span className="relative inline-flex h-8 w-8 items-center justify-center rounded-lg bg-brand-700 text-sm font-bold text-white">
+        U
+        <svg aria-hidden viewBox="0 0 12 12" className="absolute -right-1.5 -top-1.5 h-3.5 w-3.5"><path d="M6 0c.4 3 1.6 4.4 6 6-4.4 1.6-5.6 3-6 6-.4-3-1.6-4.4-6-6 4.4-1.6 5.6-3 6-6z" fill="#ffc83d" /></svg>
+      </span>
       <span className="text-lg">UNRET</span>
     </Link>
   );
@@ -71,7 +74,7 @@ export function SiteHeader() {
   };
 
   return (
-    <header className="sticky top-0 z-40 border-b border-surface-line bg-white/90 backdrop-blur dark:border-white/10 dark:bg-[#0b1311]/90">
+    <header className="sticky top-0 z-40 border-b border-surface-line bg-white/90 backdrop-blur dark:border-white/10 dark:bg-[#0c0c1d]/90">
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4 sm:px-6">
         <Logo />
         <nav className="ml-4 hidden items-center gap-1 md:flex">
@@ -91,7 +94,7 @@ export function SiteHeader() {
                   <ChevronDown className="hidden h-4 w-4 text-ink-muted sm:block" />
                 </button>
                 {menu && (
-                  <div role="menu" className="absolute right-0 mt-2 w-64 overflow-hidden rounded-2xl border border-surface-line bg-white py-1.5 shadow-lg dark:border-white/10 dark:bg-[#111a17]">
+                  <div role="menu" className="absolute right-0 mt-2 w-64 overflow-hidden rounded-2xl border border-surface-line bg-white py-1.5 shadow-lg dark:border-white/10 dark:bg-[#14152b]">
                     <div className="border-b border-surface-line px-4 py-2.5 dark:border-white/10">
                       <div className="truncate text-sm font-medium text-ink dark:text-white">{me.name}</div>
                       <div className="truncate text-xs text-ink-muted">{me.email ?? me.phone}</div>

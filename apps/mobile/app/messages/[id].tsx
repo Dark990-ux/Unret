@@ -61,7 +61,7 @@ export default function Thread() {
           ) : (
             <View style={{ alignSelf: m.mine ? 'flex-end' : 'flex-start', maxWidth: '82%', backgroundColor: m.mine ? th.brand : th.card, borderRadius: 16, borderBottomRightRadius: m.mine ? 4 : 16, borderBottomLeftRadius: m.mine ? 16 : 4, padding: 10, borderWidth: m.mine ? 0 : 1, borderColor: th.line }}>
               {m.attachmentUrl && (m.attachmentMime === 'application/pdf'
-                ? <Text style={{ color: m.mine ? '#fff' : th.brand, textDecorationLine: 'underline' }} onPress={() => Linking.openURL(absUrl(m.attachmentUrl)!)}>📄 {m.attachmentName}</Text>
+                ? <Text style={{ color: m.mine ? th.onBrand : th.brand, textDecorationLine: 'underline' }} onPress={() => Linking.openURL(absUrl(m.attachmentUrl)!)}>📄 {m.attachmentName}</Text>
                 : <Pressable onPress={() => Linking.openURL(absUrl(m.attachmentUrl)!)}><Image source={{ uri: absUrl(m.attachmentUrl)! }} style={{ width: 200, height: 160, borderRadius: 10, marginBottom: 4 }} /></Pressable>)}
               {!!m.body && <Text color={m.mine ? th.onBrand : th.text}>{m.body}</Text>}
               <Text style={{ fontSize: 11, marginTop: 2, color: m.mine ? th.onBrand : th.muted, opacity: 0.75 }}>{dateTime(m.createdAt, intl)}</Text>

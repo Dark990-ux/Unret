@@ -7,7 +7,7 @@
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "icon": "./assets/icon.png",
-    "splash": { "backgroundColor": "#047860", "resizeMode": "contain", "image": "./assets/icon.png" },
+    "splash": { "backgroundColor": "#2b2fd6", "resizeMode": "contain", "image": "./assets/icon.png" },
     "ios": {
       "bundleIdentifier": "ro.unret.app",
       "supportsTablet": true,
@@ -18,7 +18,7 @@
     },
     "android": {
       "package": "ro.unret.app",
-      "adaptiveIcon": { "foregroundImage": "./assets/icon.png", "backgroundColor": "#047860" }
+      "adaptiveIcon": { "foregroundImage": "./assets/icon.png", "backgroundColor": "#2b2fd6" }
     },
     "web": { "bundler": "metro", "output": "single" },
     "plugins": [
@@ -26,7 +26,7 @@
       "expo-secure-store",
       "expo-localization",
       "@react-native-community/datetimepicker",
-      ["expo-notifications", { "color": "#047860" }],
+      ["expo-notifications", { "color": "#2b2fd6" }],
       ["expo-image-picker", { "photosPermission": "UNRET uses your photos so you can attach pictures to requests, messages and your portfolio." }]
     ],
     "experiments": { "typedRoutes": false }

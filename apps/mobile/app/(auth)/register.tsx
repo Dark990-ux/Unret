@@ -36,7 +36,7 @@ export default function Register() {
         : <Field label={t('Phone')} hint={t('International format, e.g. +40712345678')} required><Input value={f.phone} onChangeText={(phone) => setF({ ...f, phone })} keyboardType="phone-pad" placeholder="+40" /></Field>}
       <Field label={t('Password')} hint={t('At least 10 characters.')} required><Input value={f.password} onChangeText={(password) => setF({ ...f, password })} secureTextEntry autoComplete="new-password" accessibilityLabel={t('Password')} /></Field>
       <Pressable onPress={() => setTerms(!terms)} accessibilityRole="checkbox" accessibilityState={{ checked: terms }} style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-start' }}>
-        <View style={{ width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: terms ? th.brand : th.line, backgroundColor: terms ? th.brand : 'transparent', alignItems: 'center', justifyContent: 'center' }}>{terms && <Text style={{ color: '#fff', fontSize: 13 }}>✓</Text>}</View>
+        <View style={{ width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: terms ? th.brand : th.line, backgroundColor: terms ? th.brand : 'transparent', alignItems: 'center', justifyContent: 'center' }}>{terms && <Text style={{ color: th.onBrand, fontSize: 13 }}>✓</Text>}</View>
         <Text style={{ flex: 1 }}>{t('I accept the')} <Text style={{ color: th.brand }} onPress={() => Linking.openURL(`${API_ORIGIN.replace(':4000', ':3000')}/terms`)}>{t('Terms of service')}</Text> {t('and the')} <Text style={{ color: th.brand }} onPress={() => Linking.openURL(`${API_ORIGIN.replace(':4000', ':3000')}/privacy`)}>{t('Privacy policy')}</Text>.</Text>
       </Pressable>
       {err && <Alert>{err}</Alert>}

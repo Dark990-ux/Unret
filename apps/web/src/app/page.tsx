@@ -27,13 +27,18 @@ export default function Home() {
 
   return (
     <>
-      <section className="relative overflow-hidden border-b border-surface-line bg-gradient-to-b from-brand-50 to-white dark:border-white/10 dark:from-brand-950/40 dark:to-transparent">
-        <div className="mx-auto max-w-7xl px-4 pb-16 pt-14 sm:px-6 sm:pt-20">
+      <section className="relative overflow-hidden border-b border-surface-line bg-gradient-to-b from-brand-50 to-white dark:border-white/10 dark:from-brand-950/60 dark:to-transparent">
+        <div aria-hidden className="pointer-events-none absolute -right-24 -top-32 h-[28rem] w-[28rem] rounded-full bg-accent-300/40 blur-3xl dark:bg-brand-500/25" />
+        <div aria-hidden className="pointer-events-none absolute -left-40 bottom-[-12rem] h-[26rem] w-[26rem] rounded-full bg-brand-400/25 blur-3xl" />
+        <div className="relative mx-auto max-w-7xl px-4 pb-16 pt-14 sm:px-6 sm:pt-20">
           <div className="max-w-3xl">
             <p className="mb-4 inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-sm font-medium text-brand-800 shadow-sm ring-1 ring-brand-100 dark:bg-white/5 dark:text-brand-200 dark:ring-white/10">
               <ShieldCheck className="h-4 w-4" /> {t('Verified professionals, honest reviews')}
             </p>
-            <h1 className="text-balance text-4xl font-semibold tracking-tight text-ink dark:text-white sm:text-5xl">{t('The right professional for every job.')}</h1>
+            <h1 className="text-balance text-4xl font-semibold tracking-tight text-ink dark:text-white sm:text-5xl">
+              {t('The right professional for every job.')}
+              <svg aria-hidden viewBox="0 0 12 12" className="ml-2 inline-block h-7 w-7 -translate-y-4 sm:h-9 sm:w-9"><path d="M6 0c.4 3 1.6 4.4 6 6-4.4 1.6-5.6 3-6 6-.4-3-1.6-4.4-6-6 4.4-1.6 5.6-3 6-6z" fill="#ffc83d" /></svg>
+            </h1>
             <p className="mt-4 max-w-2xl text-lg text-ink-soft dark:text-white/70">{t('Describe what you need, receive offers from verified professionals near you, compare them and hire with confidence.')}</p>
           </div>
           <form onSubmit={search} className="mt-8 grid max-w-3xl gap-2 rounded-2xl bg-white p-2 shadow-lg ring-1 ring-surface-line sm:grid-cols-[1.4fr_1fr_auto] dark:bg-white/5 dark:ring-white/10">
@@ -94,18 +99,22 @@ export default function Home() {
       </section>
 
       <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6">
-        <div className="grid items-center gap-8 rounded-3xl bg-brand-800 p-8 text-white sm:p-12 md:grid-cols-[1.5fr_1fr]">
-          <div>
+        <div className="relative grid items-center gap-8 overflow-hidden rounded-3xl bg-brand-700 p-8 text-white sm:p-12 md:grid-cols-[1.5fr_1fr]">
+          <div aria-hidden className="pointer-events-none absolute -right-20 -top-24 h-80 w-80 rounded-full bg-brand-400/50 blur-2xl" />
+          <svg aria-hidden viewBox="0 0 12 12" className="pointer-events-none absolute right-10 top-8 h-8 w-8"><path d="M6 0c.4 3 1.6 4.4 6 6-4.4 1.6-5.6 3-6 6-.4-3-1.6-4.4-6-6 4.4-1.6 5.6-3 6-6z" fill="#ffc83d" /></svg>
+          <svg aria-hidden viewBox="0 0 12 12" className="pointer-events-none absolute right-28 top-20 h-3.5 w-3.5"><path d="M6 0c.4 3 1.6 4.4 6 6-4.4 1.6-5.6 3-6 6-.4-3-1.6-4.4-6-6 4.4-1.6 5.6-3 6-6z" fill="#ffc83d" /></svg>
+          <div aria-hidden className="pointer-events-none absolute -bottom-28 left-1/3 h-64 w-64 rounded-full bg-brand-950/50 blur-2xl" />
+          <div className="relative">
             <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">{t('Are you a professional?')}</h2>
             <p className="mt-3 max-w-xl text-brand-100">{t('Receive requests from customers in your area, send offers, manage your calendar and build your reputation — all in one place.')}</p>
             <ul className="mt-5 space-y-2 text-sm text-brand-50">
               {[t('Requests matched to your services and area'), t('Fair ranking — based on relevance and reliability, not on who pays most'), t('Verification badges that show real evidence')].map((x) => (
-                <li key={x} className="flex items-start gap-2"><BadgeCheck className="mt-0.5 h-4 w-4 shrink-0" />{x}</li>
+                <li key={x} className="flex items-start gap-2"><BadgeCheck className="mt-0.5 h-4 w-4 shrink-0 text-accent-400" />{x}</li>
               ))}
             </ul>
           </div>
-          <div className="flex md:justify-end">
-            <Button size="lg" variant="secondary" href={me ? '/pro/onboard' : '/register?next=/pro/onboard'} className="!bg-white !text-brand-800 hover:!bg-brand-50">{t('Start offering services')} <ArrowRight className="h-4 w-4" /></Button>
+          <div className="relative flex md:justify-end">
+            <Button size="lg" variant="secondary" href={me ? '/pro/onboard' : '/register?next=/pro/onboard'} className="!bg-accent-500 !text-accent-ink hover:!bg-accent-400">{t('Start offering services')} <ArrowRight className="h-4 w-4" /></Button>
           </div>
         </div>
       </section>

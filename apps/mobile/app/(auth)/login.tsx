@@ -1,7 +1,7 @@
 import { Link } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
-import { useTheme } from '@/components/theme';
+import { hero, useTheme } from '@/components/theme';
 import { Alert, Button, Field, Input, Row, Screen, Text } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
@@ -24,7 +24,7 @@ export default function Login() {
   return (
     <Screen edges={['top', 'bottom']}>
       <View style={{ marginTop: 40, marginBottom: 16, gap: 14 }}>
-        <View style={{ width: 56, height: 56, borderRadius: 14, backgroundColor: th.brand, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: '#fff', fontSize: 26, fontWeight: '800' }}>U</Text></View>
+        <View style={{ width: 56, height: 56, borderRadius: 14, backgroundColor: hero.bg, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: '#fff', fontSize: 26, fontWeight: '800' }}>U</Text><View style={{ position: 'absolute', top: 8, right: 8, width: 9, height: 9, borderRadius: 5, backgroundColor: th.sun }} /></View>
         <Text variant="big">{t('Welcome back')}</Text>
         <Text color={th.soft}>{t('The right professional for every job.')}</Text>
       </View>

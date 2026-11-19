@@ -7,15 +7,17 @@ const config: Config = {
     extend: {
       colors: {
         brand: {
-          50: '#ecfdf8', 100: '#d1faec', 200: '#a7f3da', 300: '#6ee7c3', 400: '#34d3a6',
-          500: '#10b98c', 600: '#059673', 700: '#047860', 800: '#065f4d', 900: '#064e40', 950: '#022c25',
+          // Ultramarine
+          50: '#eeefff', 100: '#dfe0ff', 200: '#c5c6ff', 300: '#a1a2ff', 400: '#7b7cfa',
+          500: '#5557f0', 600: '#3a3de3', 700: '#2b2fd6', 800: '#2326ab', 900: '#1f2387', 950: '#13144f',
         },
-        ink: { DEFAULT: '#0f1a17', soft: '#43524d', muted: '#6b7a75' },
-        surface: { DEFAULT: '#ffffff', sunk: '#f5f7f6', line: '#e3e9e6' },
-        accent: { 400: '#fbbf24', 500: '#f59e0b', 600: '#d97706' },
+        ink: { DEFAULT: '#14143a', soft: '#44466a', muted: '#6e7095' },
+        surface: { DEFAULT: '#ffffff', sunk: '#f4f4fa', line: '#e2e2f0' },
+        // Sunflower
+        accent: { 100: '#fff4d1', 300: '#ffdc7a', 400: '#ffd35e', 500: '#ffc83d', 600: '#e6a817', ink: '#1b1a3a' },
       },
       fontFamily: { sans: ['var(--font-sans)', 'system-ui', 'sans-serif'] },
-      boxShadow: { card: '0 1px 2px rgba(15,26,23,.04), 0 2px 8px rgba(15,26,23,.04)' },
+      boxShadow: { card: '0 1px 2px rgba(20,20,58,.04), 0 2px 8px rgba(20,20,58,.05)' },
     },
   },
   plugins: [],

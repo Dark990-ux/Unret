@@ -12,7 +12,7 @@ body {
   font-feature-settings: 'cv11', 'ss01';
 }
 @media (prefers-color-scheme: dark) {
-  body { background: #0b1311; color: #e8efec; }
+  body { background: #0c0c1d; color: #e9e9f6; }
 }
 
 @layer utilities {
@@ -20,4 +20,4 @@ body {
 }
 
 /* Visible focus for keyboard users (WCAG 2.2 AA). */
-:focus-visible { outline: 2px solid #059673; outline-offset: 2px; }
+:focus-visible { outline: 2px solid #5557f0; outline-offset: 2px; }

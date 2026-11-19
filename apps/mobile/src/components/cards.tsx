@@ -9,7 +9,7 @@ export function InboxCard({ r }: { r: any }) {
     <Card onPress={() => router.push(`/pro/requests/${r.requestId}`)}>
       <Row style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
         <Text variant="label" numberOfLines={1} style={{ flex: 1 }}>{r.title}</Text>
-        {r.myOffer ? <StatusBadge status={r.myOffer.status} /> : !r.viewed ? <Badge tone="green">{t('New')}</Badge> : null}
+        {r.myOffer ? <StatusBadge status={r.myOffer.status} /> : !r.viewed ? <Badge tone="sun">✦ {t('New')}</Badge> : null}
       </Row>
       <Text variant="small" numberOfLines={2}>{r.description}</Text>
       <Row gap={10}>

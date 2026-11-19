@@ -106,7 +106,7 @@ export function Stars({ value, size = 14, className }: { value: number; size?: n
   return (
     <span className={cx('inline-flex items-center gap-0.5', className)} aria-label={`${value.toFixed(1)} / 5`}>
       {[1, 2, 3, 4, 5].map((i) => (
-        <Star key={i} width={size} height={size} className={i <= Math.round(value) ? 'fill-accent-500 text-accent-500' : 'fill-transparent text-ink-muted/40'} />
+        <Star key={i} width={size} height={size} className={i <= Math.round(value) ? 'fill-accent-600 text-accent-600 dark:fill-accent-500 dark:text-accent-500' : 'fill-transparent text-ink-muted/40'} />
       ))}
     </span>
   );
@@ -119,7 +119,7 @@ export function StarInput({ value, onChange, label }: { value: number; onChange:
       <span className="inline-flex gap-1" role="radiogroup" aria-label={label}>
         {[1, 2, 3, 4, 5].map((i) => (
           <button type="button" key={i} role="radio" aria-checked={value === i} aria-label={`${i}`} onClick={() => onChange(i)} className="rounded p-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-600">
-            <Star className={cx('h-6 w-6', i <= value ? 'fill-accent-500 text-accent-500' : 'text-ink-muted/40')} />
+            <Star className={cx('h-6 w-6', i <= value ? 'fill-accent-600 text-accent-600 dark:fill-accent-500 dark:text-accent-500' : 'text-ink-muted/40')} />
           </button>
         ))}
       </span>
@@ -181,7 +181,7 @@ export function Modal({ open, onClose, title, children, wide }: { open: boolean;
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div ref={ref} role="dialog" aria-modal="true" aria-label={title} className={cx('max-h-[92vh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl dark:bg-[#111a17] sm:rounded-2xl', wide ? 'sm:max-w-2xl' : 'sm:max-w-lg')}>
+      <div ref={ref} role="dialog" aria-modal="true" aria-label={title} className={cx('max-h-[92vh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl dark:bg-[#14152b] sm:rounded-2xl', wide ? 'sm:max-w-2xl' : 'sm:max-w-lg')}>
         <div className="mb-4 flex items-center justify-between gap-4">
           <h2 className="text-lg font-semibold text-ink dark:text-white">{title}</h2>
           <button onClick={onClose} className="rounded-lg p-1 text-ink-muted hover:bg-surface-sunk dark:hover:bg-white/10" aria-label="Close"><X className="h-5 w-5" /></button>

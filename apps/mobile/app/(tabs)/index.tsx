@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { Pressable, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCategories } from '@/components/domain';
-import { useTheme } from '@/components/theme';
+import { hero, useTheme } from '@/components/theme';
 import { Badge, Button, Card, Empty, Loader, Row, Screen, Section, StatusBadge, Text } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { dateTime, money, timeAgo } from '@/lib/format';
@@ -15,18 +15,29 @@ export default function Home() {
   return mode === 'professional' ? <ProHome /> : <CustomerHome />;
 }
 
-function Header({ subtitle }: { subtitle: string }) {
+function Header({ subtitle, children }: { subtitle: string; children?: React.ReactNode }) {
   const { me } = useAuth();
   const { t } = useT();
   const th = useTheme();
   return (
-    <SafeAreaView edges={['top']} style={{ backgroundColor: th.brand }}>
-      <View style={{ padding: 16, paddingBottom: 22, gap: 4 }}>
+    <SafeAreaView edges={['top']} style={{ backgroundColor: hero.bg, overflow: 'hidden' }}>
+      {/* Decorative sun and sparkles; purely visual. */}
+      <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ position: 'absolute', inset: 0 }}>
+        <View style={{ position: 'absolute', right: -70, top: -90, width: 240, height: 240, borderRadius: 120, backgroundColor: '#5b5ff0', opacity: 0.55 }} />
+        <View style={{ position: 'absolute', right: -40, top: -60, width: 160, height: 160, borderRadius: 80, backgroundColor: '#7b7cfa', opacity: 0.45 }} />
+        <View style={{ position: 'absolute', right: 22, top: 14, width: 34, height: 34, borderRadius: 17, backgroundColor: th.sun }} />
+        <View style={{ position: 'absolute', left: -50, bottom: -80, width: 180, height: 180, borderRadius: 90, backgroundColor: hero.deep, opacity: 0.6 }} />
+        {[[66, 30, 4], [96, 74, 3], [40, 150, 4], [14, 214, 3], [84, 250, 2]].map(([top, right, size], i) => (
+          <View key={i} style={{ position: 'absolute', top, right, width: size, height: size, borderRadius: size, backgroundColor: th.sun }} />
+        ))}
+      </View>
+      <View style={{ padding: 16, paddingBottom: 20, gap: 6 }}>
         <Row style={{ justifyContent: 'space-between' }}>
-          <Text variant="title" color="#fff">{t('Hi, {name}', { name: me?.name.split(' ')[0] ?? '' })}</Text>
-          <Pressable onPress={() => router.push('/notifications')} accessibilityRole="button" accessibilityLabel={t('Notifications')} hitSlop={10}><Text style={{ fontSize: 22, color: '#fff' }}>🔔</Text></Pressable>
+          <Text variant="title" color={hero.text}>{t('Hi, {name}', { name: me?.name.split(' ')[0] ?? '' })}</Text>
+          <Pressable onPress={() => router.push('/notifications')} accessibilityRole="button" accessibilityLabel={t('Notifications')} hitSlop={10} style={{ marginRight: 46 }}><Text style={{ fontSize: 22, color: hero.text }}>🔔</Text></Pressable>
         </Row>
-        <Text color="#d1faec">{subtitle}</Text>
+        <Text color={th.heroSub}>{subtitle}</Text>
+        {children ? <View style={{ marginTop: 10 }}>{children}</View> : null}
       </View>
     </SafeAreaView>
   );
@@ -40,12 +51,13 @@ function CustomerHome() {
   const reqs = useApi<{ items: any[] }>('/requests/mine', { filter: 'active', pageSize: 5 });
   return (
     <View style={{ flex: 1, backgroundColor: th.bg }}>
-      <Header subtitle={t('What do you need help with?')} />
-      <Screen onRefresh={() => { jobs.refresh(); reqs.refresh(); }} refreshing={jobs.refreshing}>
+      <Header subtitle={t('What do you need help with?')}>
         <Row style={{ flexWrap: 'nowrap' }}>
-          <Button title={t('Post a request')} icon="＋" onPress={() => router.push('/requests/new')} style={{ flex: 1 }} />
-          <Button title={t('Search')} variant="outline" icon="⌕" onPress={() => router.push('/search')} style={{ flex: 1 }} />
+          <Button title={t('Post a request')} icon="＋" variant="sun" onPress={() => router.push('/requests/new')} style={{ flex: 1 }} />
+          <Button title={t('Search')} icon="⌕" variant="glass" onPress={() => router.push('/search')} style={{ flex: 1 }} />
         </Row>
+      </Header>
+      <Screen onRefresh={() => { jobs.refresh(); reqs.refresh(); }} refreshing={jobs.refreshing}>
 
         {!!jobs.data?.items.length && (
           <Section title={t('Upcoming and active jobs')}>

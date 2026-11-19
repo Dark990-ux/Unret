@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   applicationName: 'UNRET',
 };
 
-export const viewport: Viewport = { themeColor: '#047860', width: 'device-width', initialScale: 1 };
+export const viewport: Viewport = { themeColor: '#2b2fd6', width: 'device-width', initialScale: 1 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

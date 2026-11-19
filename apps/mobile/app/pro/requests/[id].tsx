@@ -88,7 +88,7 @@ function OfferForm({ requestId, currency, existing, onDone }: { requestId: strin
         <Segmented value={f.priceType} onChange={(priceType) => setF({ ...f, priceType })} items={[{ value: 'FIXED', label: t('Fixed price') }, { value: 'ESTIMATED', label: t('Estimate') }]} />
         <Field label={t('What is included')} required><Input multiline value={f.description} onChangeText={(description) => setF({ ...f, description })} placeholder={t('Describe the work you will do for this price.')} accessibilityLabel={t('What is included')} /></Field>
         <Pressable onPress={() => setF({ ...f, materialsIncluded: !f.materialsIncluded })} accessibilityRole="checkbox" accessibilityState={{ checked: f.materialsIncluded }} style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
-          <View style={{ width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: f.materialsIncluded ? th.brand : th.line, backgroundColor: f.materialsIncluded ? th.brand : 'transparent', alignItems: 'center', justifyContent: 'center' }}>{f.materialsIncluded && <Text style={{ color: '#fff', fontSize: 13 }}>✓</Text>}</View>
+          <View style={{ width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: f.materialsIncluded ? th.brand : th.line, backgroundColor: f.materialsIncluded ? th.brand : 'transparent', alignItems: 'center', justifyContent: 'center' }}>{f.materialsIncluded && <Text style={{ color: th.onBrand, fontSize: 13 }}>✓</Text>}</View>
           <Text>{t('Materials included in the price')}</Text>
         </Pressable>
         <Field label={t('Materials notes')}><Input value={f.materialsNote} onChangeText={(materialsNote) => setF({ ...f, materialsNote })} placeholder={t('e.g. customer buys the sockets')} /></Field>
