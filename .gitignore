@@ -1,0 +1,8 @@
+node_modules
+dist
+.next
+.env
+uploads
+*.log
+.turbo
+coverage

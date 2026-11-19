@@ -1,0 +1,947 @@
+// UNRET — relational data model (PRD §19).
+// Money: integer minor units + explicit ISO currency. Timestamps: UTC.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────── Enums ───────────────────────────
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum AccountStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+enum ProfessionalAccountType {
+  INDIVIDUAL
+  COMPANY
+}
+
+enum ProfileVisibility {
+  HIDDEN // incomplete profile: not in search, not matched
+  LIMITED // essentials present, awaiting more details
+  PUBLIC
+}
+
+enum PricingType {
+  FIXED
+  HOURLY
+  ESTIMATE
+  ON_REQUEST
+}
+
+enum OfferPriceType {
+  FIXED
+  ESTIMATED
+}
+
+enum ServiceMode {
+  ON_SITE
+  REMOTE
+  EITHER
+}
+
+enum Urgency {
+  LOW
+  NORMAL
+  HIGH
+  EMERGENCY
+}
+
+enum RequestStatus {
+  DRAFT
+  PUBLISHED
+  OFFERS_RECEIVED
+  OFFER_ACCEPTED
+  CANCELLED
+  EXPIRED
+}
+
+enum OfferStatus {
+  PENDING
+  MODIFICATION_REQUESTED
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+  EXPIRED
+}
+
+enum JobStatus {
+  ACCEPTED
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  DISPUTED
+}
+
+enum JobChangeStatus {
+  PROPOSED
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+enum AppointmentStatus {
+  RESERVED
+  CANCELLED
+  DONE
+}
+
+enum PaymentMethod {
+  DIRECT
+  PLATFORM
+}
+
+enum PaymentStatus {
+  RECORDED // direct payment — recorded only, not processed
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum VerificationType {
+  IDENTITY
+  BUSINESS
+  QUALIFICATION
+  ADDITIONAL
+}
+
+enum VerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ReviewStatus {
+  PUBLISHED
+  UNDER_REVIEW
+  HIDDEN
+}
+
+enum ReportTargetType {
+  USER
+  PROFILE
+  REQUEST
+  REVIEW
+  MESSAGE
+}
+
+enum ReportStatus {
+  OPEN
+  IN_REVIEW
+  RESOLVED
+  DISMISSED
+}
+
+enum DisputeStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED
+}
+
+enum CompanyStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum CompanyMemberRole {
+  OWNER
+  MANAGER
+  MEMBER
+}
+
+enum MessageKind {
+  TEXT
+  SYSTEM
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  EXPIRED
+}
+
+// ─────────────────────── Configuration ───────────────────────
+
+model Country {
+  code            String   @id @db.Char(2) // ISO 3166-1 alpha-2
+  name            String
+  currency        String   @db.Char(3)
+  defaultLanguage String
+  defaultTimezone String
+  phonePrefix     String
+  isActive        Boolean  @default(true)
+  platformFeeBps  Int      @default(1000) // 10.00 %, basis points
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  users      User[]
+  categories CategoryCountry[]
+  requests   ServiceRequest[]
+  plans      SubscriptionPlan[]
+}
+
+// ───────────────────────── Identity ─────────────────────────
+
+model User {
+  id                String        @id @default(uuid())
+  email             String?       @unique
+  phone             String?       @unique
+  passwordHash      String
+  name              String
+  role              Role          @default(USER)
+  status            AccountStatus @default(ACTIVE)
+  countryCode       String        @db.Char(2)
+  preferredLanguage String        @default("ro")
+  avatarKey         String?
+  addressText       String?
+  city              String?
+  mfaEnabled        Boolean       @default(false)
+  mfaSecret         String?
+  termsAcceptedAt   DateTime
+  lastLoginAt       DateTime?
+  suspendedReason   String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  country               Country                  @relation(fields: [countryCode], references: [code])
+  professional          ProfessionalProfile?
+  refreshTokens         RefreshToken[]
+  requests              ServiceRequest[]
+  customerJobs          Job[]                    @relation("CustomerJobs")
+  customerConvs         Conversation[]           @relation("CustomerConversations")
+  messages              Message[]
+  reviewsWritten        Review[]                 @relation("ReviewAuthor")
+  notifications         Notification[]
+  notificationPrefs     NotificationPreference[]
+  pushDevices           PushDevice[]
+  reports               Report[]                 @relation("Reporter")
+  ownedCompanies        Company[]                @relation("CompanyOwner")
+  companyMemberships    CompanyMember[]
+  savedProfessionals    SavedProfessional[]
+  auditLogs             AuditLog[]               @relation("AuditActor")
+  verificationsReviewed Verification[]           @relation("VerificationReviewer")
+  disputesOpened        Dispute[]                @relation("DisputeOpener")
+  disputesResolved      Dispute[]                @relation("DisputeResolver")
+  reportsHandled        Report[]                 @relation("ReportHandler")
+  jobChangesProposed    JobChange[]              @relation("JobChangeProposer")
+  jobEvents             JobEvent[]
+  offerRevisions        OfferRevision[]
+
+  @@index([countryCode])
+  @@index([status])
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  userAgent String?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ─────────────────────── Professionals ───────────────────────
+
+model ProfessionalProfile {
+  id                 String                  @id @default(uuid())
+  userId             String                  @unique
+  accountType        ProfessionalAccountType @default(INDIVIDUAL)
+  businessName       String?
+  headline           String?
+  biography          String?
+  experienceYears    Int?
+  languages          String[]                @default([])
+  city               String?
+  countryCode        String                  @db.Char(2)
+  baseLat            Float?
+  baseLng            Float?
+  serviceRadiusKm    Int                     @default(25)
+  remoteAvailable    Boolean                 @default(false)
+  emergencyAvailable Boolean                 @default(false)
+  acceptingRequests  Boolean                 @default(true) // "temporarily pause new requests"
+  visibility         ProfileVisibility       @default(HIDDEN)
+  timezone           String                  @default("Europe/Bucharest")
+  // Denormalized reputation counters — recomputed by ReviewsService / JobsService.
+  ratingAvg          Float                   @default(0)
+  ratingCount        Int                     @default(0)
+  completedJobs      Int                     @default(0)
+  cancelledJobs      Int                     @default(0)
+  avgResponseMinutes Int?
+  reliabilityScore   Float                   @default(0.7) // 0..1
+  companyId          String?
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+
+  user              User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company           Company?                   @relation(fields: [companyId], references: [id])
+  services          ProfessionalService[]
+  portfolio         PortfolioItem[]
+  availabilityRules AvailabilityRule[]
+  availabilityBlock AvailabilityBlock[]
+  appointments      Appointment[]
+  verifications     Verification[]
+  matches           RequestMatch[]
+  offers            Offer[]
+  jobs              Job[]                      @relation("ProfessionalJobs")
+  conversations     Conversation[]             @relation("ProfessionalConversations")
+  reviews           Review[]                   @relation("ReviewSubject")
+  savedBy           SavedProfessional[]
+  subscriptions     ProfessionalSubscription[]
+
+  @@index([countryCode, visibility])
+  @@index([companyId])
+}
+
+model Company {
+  id                  String        @id @default(uuid())
+  ownerUserId         String
+  legalName           String
+  displayName         String
+  registrationCountry String        @db.Char(2)
+  registrationNumber  String
+  description         String?
+  logoKey             String?
+  status              CompanyStatus @default(ACTIVE)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  owner          User                  @relation("CompanyOwner", fields: [ownerUserId], references: [id])
+  members        CompanyMember[]
+  professionals  ProfessionalProfile[]
+  jobAssignments Job[]                 @relation("CompanyJobs")
+
+  @@unique([registrationCountry, registrationNumber])
+}
+
+model CompanyMember {
+  id        String            @id @default(uuid())
+  companyId String
+  userId    String
+  role      CompanyMemberRole @default(MEMBER)
+  createdAt DateTime          @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, userId])
+}
+
+// ───────────────────────── Categories ─────────────────────────
+
+model ServiceCategory {
+  id                    String             @id @default(uuid())
+  parentId              String?
+  slug                  String             @unique
+  icon                  String?
+  sortOrder             Int                @default(0)
+  isActive              Boolean            @default(true)
+  remoteAllowed         Boolean            @default(false)
+  // Default required verifications for professionals in this category (overridable per country).
+  requiredVerifications VerificationType[] @default([])
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  parent        ServiceCategory?      @relation("CategoryTree", fields: [parentId], references: [id])
+  children      ServiceCategory[]     @relation("CategoryTree")
+  translations  CategoryTranslation[]
+  countries     CategoryCountry[]
+  services      ProfessionalService[]
+  requests      ServiceRequest[]
+  portfolio     PortfolioItem[]
+  verifications Verification[]
+
+  @@index([parentId])
+}
+
+model CategoryTranslation {
+  id          String  @id @default(uuid())
+  categoryId  String
+  locale      String
+  name        String
+  description String?
+
+  category ServiceCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId, locale])
+}
+
+model CategoryCountry {
+  id                    String             @id @default(uuid())
+  categoryId            String
+  countryCode           String             @db.Char(2)
+  isActive              Boolean            @default(true)
+  // null => inherit category default
+  requiredVerifications VerificationType[]
+  overrideRequirements  Boolean            @default(false)
+
+  category ServiceCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  country  Country         @relation(fields: [countryCode], references: [code])
+
+  @@unique([categoryId, countryCode])
+}
+
+model ProfessionalService {
+  id                   String      @id @default(uuid())
+  professionalId       String
+  categoryId           String
+  description          String?
+  pricingType          PricingType @default(ON_REQUEST)
+  indicativePriceMinor Int?
+  currency             String      @db.Char(3)
+  isPrimary            Boolean     @default(false)
+  createdAt            DateTime    @default(now())
+
+  professional ProfessionalProfile @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  category     ServiceCategory     @relation(fields: [categoryId], references: [id])
+
+  @@unique([professionalId, categoryId])
+  @@index([categoryId])
+}
+
+model PortfolioItem {
+  id             String   @id @default(uuid())
+  professionalId String
+  categoryId     String?
+  title          String
+  description    String?
+  fileKey        String
+  createdAt      DateTime @default(now())
+
+  professional ProfessionalProfile @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  category     ServiceCategory?    @relation(fields: [categoryId], references: [id])
+
+  @@index([professionalId])
+}
+
+// ──────────────────────── Availability ────────────────────────
+
+model AvailabilityRule {
+  id             String  @id @default(uuid())
+  professionalId String
+  weekday        Int // 0 = Sunday … 6 = Saturday (in professional's timezone)
+  startTime      String // "HH:mm" local
+  endTime        String // "HH:mm" local
+  isEmergency    Boolean @default(false)
+
+  professional ProfessionalProfile @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+
+  @@index([professionalId])
+}
+
+model AvailabilityBlock {
+  id             String   @id @default(uuid())
+  professionalId String
+  startsAt       DateTime
+  endsAt         DateTime
+  reason         String?
+  createdAt      DateTime @default(now())
+
+  professional ProfessionalProfile @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+
+  @@index([professionalId, startsAt])
+}
+
+/// Reserved slots. Double booking is prevented by an exclusion constraint
+/// (see migration `appointment_no_overlap`).
+model Appointment {
+  id             String            @id @default(uuid())
+  professionalId String
+  jobId          String?           @unique
+  startsAt       DateTime
+  endsAt         DateTime
+  timezone       String
+  status         AppointmentStatus @default(RESERVED)
+  createdAt      DateTime          @default(now())
+
+  professional ProfessionalProfile @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  job          Job?                @relation(fields: [jobId], references: [id])
+
+  @@index([professionalId, startsAt])
+}
+
+// ───────────────────────── Requests ─────────────────────────
+
+model ServiceRequest {
+  id                  String        @id @default(uuid())
+  customerId          String
+  categoryId          String
+  title               String
+  description         String
+  serviceMode         ServiceMode   @default(ON_SITE)
+  addressText         String?
+  city                String?
+  countryCode         String        @db.Char(2)
+  lat                 Float?
+  lng                 Float?
+  preferredDate       DateTime?
+  preferredTimeWindow String? // e.g. "morning", "14:00-18:00"
+  budgetMinMinor      Int?
+  budgetMaxMinor      Int?
+  currency            String        @db.Char(3)
+  urgency             Urgency       @default(NORMAL)
+  status              RequestStatus @default(DRAFT)
+  matchWave           Int           @default(0)
+  publishedAt         DateTime?
+  expiresAt           DateTime?
+  cancelledAt         DateTime?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  customer      User                @relation(fields: [customerId], references: [id])
+  category      ServiceCategory     @relation(fields: [categoryId], references: [id])
+  country       Country             @relation(fields: [countryCode], references: [code])
+  attachments   RequestAttachment[]
+  matches       RequestMatch[]
+  offers        Offer[]
+  job           Job?
+  conversations Conversation[]
+
+  @@index([customerId, status])
+  @@index([categoryId, status])
+  @@index([status, expiresAt])
+}
+
+model RequestAttachment {
+  id        String   @id @default(uuid())
+  requestId String
+  fileKey   String
+  fileName  String
+  mimeType  String
+  createdAt DateTime @default(now())
+
+  request ServiceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+}
+
+/// One row per professional evaluated for a request — included or excluded —
+/// so the platform can explain every matching decision (PRD §20).
+model RequestMatch {
+  id              String    @id @default(uuid())
+  requestId       String
+  professionalId  String
+  included        Boolean
+  score           Float     @default(0)
+  breakdown       Json // per-criterion scores
+  exclusionReason String?
+  wave            Int? // distribution wave in which this pro was notified
+  distanceKm      Float?
+  notifiedAt      DateTime?
+  viewedAt        DateTime?
+  declinedAt      DateTime?
+  createdAt       DateTime  @default(now())
+
+  request      ServiceRequest      @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  professional ProfessionalProfile @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, professionalId])
+  @@index([professionalId, notifiedAt])
+}
+
+// ───────────────────────── Offers ─────────────────────────
+
+model Offer {
+  id              String      @id @default(uuid())
+  requestId       String
+  professionalId  String
+  status          OfferStatus @default(PENDING)
+  currentRevision Int         @default(1)
+  expiresAt       DateTime
+  respondedAt     DateTime? // customer decision time
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  request      ServiceRequest      @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  professional ProfessionalProfile @relation(fields: [professionalId], references: [id])
+  revisions    OfferRevision[]
+  job          Job?
+
+  @@unique([requestId, professionalId])
+  @@index([professionalId, status])
+}
+
+/// Immutable. The original quotation is revision 1; every change appends a row.
+model OfferRevision {
+  id                 String         @id @default(uuid())
+  offerId            String
+  revision           Int
+  priceMinor         Int
+  currency           String         @db.Char(3)
+  priceType          OfferPriceType
+  description        String
+  materialsIncluded  Boolean        @default(false)
+  materialsNote      String?
+  additionalExpenses String?
+  proposedStartAt    DateTime?
+  proposedEndAt      DateTime?
+  message            String?
+  createdById        String
+  createdAt          DateTime       @default(now())
+
+  offer     Offer @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  createdBy User  @relation(fields: [createdById], references: [id])
+  jobs      Job[]
+
+  @@unique([offerId, revision])
+}
+
+// ───────────────────────── Jobs ─────────────────────────
+
+/// The job agreement record created when an offer is accepted.
+model Job {
+  id                      String         @id @default(uuid())
+  requestId               String         @unique
+  offerId                 String         @unique
+  acceptedRevisionId      String
+  customerId              String
+  professionalId          String
+  companyId               String?
+  assignedMemberUserId    String?
+  agreedPriceMinor        Int
+  currency                String         @db.Char(3)
+  priceType               OfferPriceType
+  scope                   String
+  status                  JobStatus      @default(ACCEPTED)
+  paymentMethod           PaymentMethod  @default(DIRECT)
+  scheduledStartAt        DateTime?
+  scheduledEndAt          DateTime?
+  customerConfirmedAt     DateTime?
+  professionalConfirmedAt DateTime?
+  completedAt             DateTime?
+  cancelledAt             DateTime?
+  cancelledById           String?
+  cancellationReason      String?
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
+
+  request          ServiceRequest      @relation(fields: [requestId], references: [id])
+  offer            Offer               @relation(fields: [offerId], references: [id])
+  acceptedRevision OfferRevision       @relation(fields: [acceptedRevisionId], references: [id])
+  customer         User                @relation("CustomerJobs", fields: [customerId], references: [id])
+  professional     ProfessionalProfile @relation("ProfessionalJobs", fields: [professionalId], references: [id])
+  company          Company?            @relation("CompanyJobs", fields: [companyId], references: [id])
+  appointment      Appointment?
+  changes          JobChange[]
+  events           JobEvent[]
+  review           Review?
+  payments         Payment[]
+  disputes         Dispute[]
+  conversations    Conversation[]
+
+  @@index([customerId, status])
+  @@index([professionalId, status])
+}
+
+/// Proposed amendment to price / scope / schedule. Takes effect only when
+/// explicitly accepted by the other party (PRD §7).
+model JobChange {
+  id               String          @id @default(uuid())
+  jobId            String
+  proposedById     String
+  priceMinor       Int?
+  scope            String?
+  scheduledStartAt DateTime?
+  scheduledEndAt   DateTime?
+  reason           String
+  status           JobChangeStatus @default(PROPOSED)
+  respondedById    String?
+  respondedAt      DateTime?
+  // snapshot of agreement before change, for the audit trail
+  previous         Json
+  createdAt        DateTime        @default(now())
+
+  job        Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  proposedBy User @relation("JobChangeProposer", fields: [proposedById], references: [id])
+
+  @@index([jobId])
+}
+
+model JobEvent {
+  id         String     @id @default(uuid())
+  jobId      String
+  actorId    String?
+  fromStatus JobStatus?
+  toStatus   JobStatus?
+  type       String // STATUS_CHANGE, CHANGE_PROPOSED, CHANGE_ACCEPTED, CONFIRMED, …
+  note       String?
+  createdAt  DateTime   @default(now())
+
+  job   Job   @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  actor User? @relation(fields: [actorId], references: [id])
+
+  @@index([jobId, createdAt])
+}
+
+// ──────────────────────── Messaging ────────────────────────
+
+model Conversation {
+  id                     String    @id @default(uuid())
+  requestId              String?
+  jobId                  String?
+  customerId             String
+  professionalId         String
+  lastMessageAt          DateTime  @default(now())
+  customerLastReadAt     DateTime?
+  professionalLastReadAt DateTime?
+  createdAt              DateTime  @default(now())
+
+  request      ServiceRequest?     @relation(fields: [requestId], references: [id])
+  job          Job?                @relation(fields: [jobId], references: [id])
+  customer     User                @relation("CustomerConversations", fields: [customerId], references: [id])
+  professional ProfessionalProfile @relation("ProfessionalConversations", fields: [professionalId], references: [id])
+  messages     Message[]
+
+  @@unique([requestId, customerId, professionalId])
+  @@index([customerId, lastMessageAt])
+  @@index([professionalId, lastMessageAt])
+}
+
+model Message {
+  id             String      @id @default(uuid())
+  conversationId String
+  senderId       String?
+  kind           MessageKind @default(TEXT)
+  body           String
+  attachmentKey  String?
+  attachmentName String?
+  attachmentMime String?
+  createdAt      DateTime    @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User?        @relation(fields: [senderId], references: [id])
+
+  @@index([conversationId, createdAt])
+}
+
+// ─────────────────────── Notifications ───────────────────────
+
+model Notification {
+  id        String    @id @default(uuid())
+  userId    String
+  type      String
+  title     String
+  body      String
+  data      Json      @default("{}")
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt])
+}
+
+model NotificationPreference {
+  id     String  @id @default(uuid())
+  userId String
+  type   String
+  inApp  Boolean @default(true)
+  email  Boolean @default(true)
+  push   Boolean @default(true)
+  sms    Boolean @default(false)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type])
+}
+
+model PushDevice {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  platform  String // ios | android | web
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ──────────────────────── Reputation ────────────────────────
+
+model Review {
+  id                   String       @id @default(uuid())
+  jobId                String       @unique // one verified review per job
+  customerId           String
+  professionalId       String
+  overall              Int // 1..5
+  communication        Int
+  quality              Int
+  punctuality          Int
+  text                 String?
+  isVerifiedJob        Boolean      @default(true)
+  status               ReviewStatus @default(PUBLISHED)
+  professionalResponse String?
+  respondedAt          DateTime?
+  moderationNote       String?
+  createdAt            DateTime     @default(now())
+
+  job          Job                 @relation(fields: [jobId], references: [id])
+  customer     User                @relation("ReviewAuthor", fields: [customerId], references: [id])
+  professional ProfessionalProfile @relation("ReviewSubject", fields: [professionalId], references: [id])
+
+  @@index([professionalId, status, createdAt])
+}
+
+model SavedProfessional {
+  id             String   @id @default(uuid())
+  userId         String
+  professionalId String
+  createdAt      DateTime @default(now())
+
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  professional ProfessionalProfile @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, professionalId])
+}
+
+// ───────────────────────── Payments ─────────────────────────
+
+model Payment {
+  id                String        @id @default(uuid())
+  jobId             String
+  method            PaymentMethod
+  provider          String? // e.g. "stripe", "mock"; null for DIRECT
+  providerReference String?       @unique
+  grossMinor        Int
+  platformFeeMinor  Int           @default(0)
+  providerFeeMinor  Int           @default(0)
+  payoutMinor       Int           @default(0)
+  refundedMinor     Int           @default(0)
+  currency          String        @db.Char(3)
+  status            PaymentStatus
+  paymentMethodNote String? // e.g. "cash", "bank transfer", "card"
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  job Job @relation(fields: [jobId], references: [id])
+
+  @@index([jobId])
+  @@index([status])
+}
+
+model SubscriptionPlan {
+  id          String   @id @default(uuid())
+  code        String
+  name        String
+  countryCode String   @db.Char(2)
+  priceMinor  Int
+  currency    String   @db.Char(3)
+  features    Json     @default("{}")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  country       Country                    @relation(fields: [countryCode], references: [code])
+  subscriptions ProfessionalSubscription[]
+
+  @@unique([code, countryCode])
+}
+
+model ProfessionalSubscription {
+  id               String             @id @default(uuid())
+  professionalId   String
+  planId           String
+  status           SubscriptionStatus @default(ACTIVE)
+  currentPeriodEnd DateTime
+  createdAt        DateTime           @default(now())
+
+  professional ProfessionalProfile @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  plan         SubscriptionPlan    @relation(fields: [planId], references: [id])
+
+  @@index([professionalId, status])
+}
+
+// ──────────────────────── Trust & Safety ────────────────────────
+
+model Verification {
+  id             String             @id @default(uuid())
+  professionalId String
+  type           VerificationType
+  categoryId     String? // qualification for a specific category
+  documentKey    String // private object storage key — never public
+  documentName   String
+  notes          String?
+  status         VerificationStatus @default(PENDING)
+  reviewedById   String?
+  reviewedAt     DateTime?
+  reviewNote     String?
+  expiresAt      DateTime?
+  createdAt      DateTime           @default(now())
+
+  professional ProfessionalProfile @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  category     ServiceCategory?    @relation(fields: [categoryId], references: [id])
+  reviewedBy   User?               @relation("VerificationReviewer", fields: [reviewedById], references: [id])
+
+  @@index([status, createdAt])
+  @@index([professionalId, type, status])
+}
+
+model Report {
+  id          String           @id @default(uuid())
+  reporterId  String
+  targetType  ReportTargetType
+  targetId    String
+  reason      String
+  details     String?
+  status      ReportStatus     @default(OPEN)
+  handledById String?
+  resolution  String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  reporter  User  @relation("Reporter", fields: [reporterId], references: [id])
+  handledBy User? @relation("ReportHandler", fields: [handledById], references: [id])
+
+  @@index([status, createdAt])
+}
+
+model Dispute {
+  id           String        @id @default(uuid())
+  jobId        String
+  openedById   String
+  reason       String
+  details      String?
+  status       DisputeStatus @default(OPEN)
+  resolution   String?
+  resolvedById String?
+  resolvedAt   DateTime?
+  createdAt    DateTime      @default(now())
+
+  job        Job   @relation(fields: [jobId], references: [id])
+  openedBy   User  @relation("DisputeOpener", fields: [openedById], references: [id])
+  resolvedBy User? @relation("DisputeResolver", fields: [resolvedById], references: [id])
+
+  @@index([status, createdAt])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String?
+  action     String // e.g. "admin.user.suspend", "verification.approve"
+  entityType String
+  entityId   String?
+  metadata   Json     @default("{}")
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  actor User? @relation("AuditActor", fields: [actorId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
+}
