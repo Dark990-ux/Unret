@@ -307,6 +307,7 @@ model ProfessionalProfile {
   reviews           Review[]                   @relation("ReviewSubject")
   savedBy           SavedProfessional[]
   subscriptions     ProfessionalSubscription[]
+  directRequests    ServiceRequest[]           @relation("DirectRequests")
 
   @@index([countryCode, visibility])
   @@index([companyId])
@@ -482,43 +483,49 @@ model Appointment {
 // ───────────────────────── Requests ─────────────────────────
 
 model ServiceRequest {
-  id                  String        @id @default(uuid())
-  customerId          String
-  categoryId          String
-  title               String
-  description         String
-  serviceMode         ServiceMode   @default(ON_SITE)
-  addressText         String?
-  city                String?
-  countryCode         String        @db.Char(2)
-  lat                 Float?
-  lng                 Float?
-  preferredDate       DateTime?
-  preferredTimeWindow String? // e.g. "morning", "14:00-18:00"
-  budgetMinMinor      Int?
-  budgetMaxMinor      Int?
-  currency            String        @db.Char(3)
-  urgency             Urgency       @default(NORMAL)
-  status              RequestStatus @default(DRAFT)
-  matchWave           Int           @default(0)
-  publishedAt         DateTime?
-  expiresAt           DateTime?
-  cancelledAt         DateTime?
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
+  id                   String        @id @default(uuid())
+  customerId           String
+  categoryId           String
+  title                String
+  description          String
+  serviceMode          ServiceMode   @default(ON_SITE)
+  addressText          String?
+  city                 String?
+  countryCode          String        @db.Char(2)
+  lat                  Float?
+  lng                  Float?
+  preferredDate        DateTime?
+  /// End of the preferred period (inclusive day), when the customer picked a date range.
+  preferredDateTo      DateTime?
+  preferredTimeWindow  String? // e.g. "morning", "14:00-18:00"
+  /// Set when the customer sent the request directly to one professional (from their calendar).
+  targetProfessionalId String?
+  budgetMinMinor       Int?
+  budgetMaxMinor       Int?
+  currency             String        @db.Char(3)
+  urgency              Urgency       @default(NORMAL)
+  status               RequestStatus @default(DRAFT)
+  matchWave            Int           @default(0)
+  publishedAt          DateTime?
+  expiresAt            DateTime?
+  cancelledAt          DateTime?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
 
-  customer      User                @relation(fields: [customerId], references: [id])
-  category      ServiceCategory     @relation(fields: [categoryId], references: [id])
-  country       Country             @relation(fields: [countryCode], references: [code])
-  attachments   RequestAttachment[]
-  matches       RequestMatch[]
-  offers        Offer[]
-  job           Job?
-  conversations Conversation[]
+  customer           User                 @relation(fields: [customerId], references: [id])
+  category           ServiceCategory      @relation(fields: [categoryId], references: [id])
+  country            Country              @relation(fields: [countryCode], references: [code])
+  targetProfessional ProfessionalProfile? @relation("DirectRequests", fields: [targetProfessionalId], references: [id])
+  attachments        RequestAttachment[]
+  matches            RequestMatch[]
+  offers             Offer[]
+  job                Job?
+  conversations      Conversation[]
 
   @@index([customerId, status])
   @@index([categoryId, status])
   @@index([status, expiresAt])
+  @@index([targetProfessionalId, status])
 }
 
 model RequestAttachment {

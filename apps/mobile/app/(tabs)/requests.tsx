@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Button, Card, Empty, Loader, Row, Screen, Segmented, StatusBadge, Text, Badge } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
-import { timeAgo } from '@/lib/format';
+import { period, timeAgo } from '@/lib/format';
 import { useApi } from '@/lib/hooks';
 import { useT } from '@/lib/i18n';
 import { useRealtime } from '@/lib/realtime';
@@ -26,7 +26,7 @@ function MyRequests() {
           <Card key={r.id} onPress={() => router.push(`/requests/${r.id}`)}>
             <Row style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}><Text variant="label" numberOfLines={1} style={{ flex: 1 }}>{r.title}</Text><StatusBadge status={r.job?.status ?? r.status} /></Row>
             <Text variant="small">{r.categoryName}{r.city ? ` · ${r.city}` : ''} · {timeAgo(r.publishedAt ?? r.createdAt, intl)}</Text>
-            {r.offerCount > 0 && <Badge tone="violet">{t('{n} offers', { n: r.offerCount })}</Badge>}
+            <Row gap={6}>{r.directTo && <Badge tone="sun">✦ {r.directTo}</Badge>}{r.preferredDate && <Text variant="small">📅 {period(r.preferredDate, r.preferredDateTo, intl)}</Text>}{r.offerCount > 0 && <Badge tone="violet">{t('{n} offers', { n: r.offerCount })}</Badge>}</Row>
           </Card>
         ))}
     </Screen>

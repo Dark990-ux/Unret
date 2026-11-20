@@ -14,6 +14,8 @@ export class CreateRequestDto {
   @ApiProperty({ required: false }) @IsOptional() @IsLatitude() lat?: number;
   @ApiProperty({ required: false }) @IsOptional() @IsLongitude() lng?: number;
   @ApiProperty({ required: false }) @IsOptional() @IsDateString() preferredDate?: string;
+  @ApiProperty({ required: false, description: 'End of the preferred period (inclusive), for date ranges' }) @IsOptional() @IsDateString() preferredDateTo?: string;
+  @ApiProperty({ required: false, description: 'Send the request directly to this professional only' }) @IsOptional() @IsString() professionalId?: string;
   @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(60) preferredTimeWindow?: string;
   @ApiProperty({ required: false }) @IsOptional() @IsInt() @Min(0) budgetMinMinor?: number;
   @ApiProperty({ required: false }) @IsOptional() @IsInt() @Min(0) budgetMaxMinor?: number;
@@ -32,6 +34,7 @@ export class UpdateRequestDto {
   @IsOptional() @IsLatitude() lat?: number;
   @IsOptional() @IsLongitude() lng?: number;
   @IsOptional() @IsDateString() preferredDate?: string;
+  @IsOptional() @IsDateString() preferredDateTo?: string;
   @IsOptional() @IsString() @MaxLength(60) preferredTimeWindow?: string;
   @IsOptional() @IsInt() @Min(0) budgetMinMinor?: number;
   @IsOptional() @IsInt() @Min(0) budgetMaxMinor?: number;

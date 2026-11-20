@@ -173,6 +173,30 @@ export class MatchingService implements OnModuleInit {
     return next.length;
   }
 
+  /** A request sent from a professional's calendar goes to that professional only. */
+  async distributeDirect(requestId: string, professionalId: string) {
+    const req = await this.prisma.serviceRequest.findUniqueOrThrow({ where: { id: requestId }, include: { customer: { select: { name: true } } } });
+    const pro = await this.prisma.professionalProfile.findUniqueOrThrow({ where: { id: professionalId }, select: { userId: true } });
+    const now = new Date();
+    await this.prisma.$transaction([
+      this.prisma.requestMatch.upsert({
+        where: { requestId_professionalId: { requestId, professionalId } },
+        create: { requestId, professionalId, included: true, score: 1, breakdown: { direct: true }, wave: 1, notifiedAt: now },
+        update: { included: true, notifiedAt: now, wave: 1 },
+      }),
+      this.prisma.serviceRequest.update({ where: { id: requestId }, data: { matchWave: 1 } }),
+    ]);
+    const fmt = (d: Date) => d.toISOString().slice(0, 10);
+    const period = req.preferredDate ? (req.preferredDateTo && +req.preferredDateTo !== +req.preferredDate ? `${fmt(req.preferredDate)} → ${fmt(req.preferredDateTo)}` : fmt(req.preferredDate)) : null;
+    await this.notifications.notify({
+      userId: pro.userId,
+      type: 'NEW_MATCHING_REQUEST',
+      title: `${req.customer.name} sent you a request`,
+      body: `${req.title}${period ? ` · ${period}` : ''}`,
+      data: { requestId, direct: true, url: `/pro/requests/${requestId}` },
+    });
+  }
+
   private async ancestorIds(id: string): Promise<string[]> {
     const rows = await this.prisma.$queryRaw<{ id: string }[]>`
       WITH RECURSIVE t AS (

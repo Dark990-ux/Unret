@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { money, timeAgo } from '@/lib/format';
+import { money, period, timeAgo } from '@/lib/format';
 import { useT } from '@/lib/i18n';
 import { Badge, Card, Row, StatusBadge, Text } from './ui';
 
@@ -15,6 +15,8 @@ export function InboxCard({ r }: { r: any }) {
       <Row gap={10}>
         <Text variant="small">{r.serviceMode === 'REMOTE' ? `🌐 ${t('Remote')}` : `📍 ${r.city ?? ''}${r.distanceKm != null ? ` · ${r.distanceKm} km` : ''}`}</Text>
         <Text variant="small">{timeAgo(r.notifiedAt, intl)}</Text>
+        {r.direct && <Badge tone="sun">✦ {t('Direct request')}</Badge>}
+        {r.preferredDate && <Text variant="small">📅 {period(r.preferredDate, r.preferredDateTo, intl)}</Text>}
         {r.urgency === 'EMERGENCY' && <Badge tone="red">{t('Emergency')}</Badge>}
         {r.budgetMaxMinor ? <Text variant="small">≤ {money(r.budgetMaxMinor, r.currency, intl)}</Text> : null}
       </Row>

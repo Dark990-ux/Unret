@@ -6,7 +6,7 @@ import { CalendarDays, MapPin, MessageSquare, ThumbsDown, Wifi } from 'lucide-re
 import { Alert, Badge, Button, Card, Checkbox, Empty, Field, Input, KeyValue, PageHeader, PageLoader, Select, StatusBadge, Textarea } from '@/components/ui-exports';
 import { ProShell } from '@/components/shell';
 import { api } from '@/lib/api';
-import { date, dateTime, fromLocalInput, majorToMinor, money, toLocalInput } from '@/lib/format';
+import { date, dateTime, fromLocalInput, majorToMinor, money, period, toLocalInput } from '@/lib/format';
 import { useApi } from '@/lib/hooks';
 import { useT } from '@/lib/i18n';
 
@@ -36,7 +36,7 @@ function ProRequest() {
   return (
     <>
       <PageHeader title={r.title} back={{ href: '/pro/requests', label: t('Requests') }}
-        subtitle={<span className="flex flex-wrap items-center gap-2"><StatusBadge status={r.status} />{r.categoryName}</span>}
+        subtitle={<span className="flex flex-wrap items-center gap-2"><StatusBadge status={r.status} />{r.categoryName}{r.directTo && <Badge tone="amber">✦ {t('Sent directly to you from your calendar')}</Badge>}</span>}
         actions={<>
           <Button variant="outline" onClick={ask}><MessageSquare className="h-4 w-4" />{t('Ask the customer')}</Button>
           {!offer && open && !r.match?.declined && <Button variant="ghost" onClick={async () => { await api(`/requests/${id}/decline`, { method: 'POST' }); router.push('/pro/requests'); }}><ThumbsDown className="h-4 w-4" />{t('Not interested')}</Button>}
@@ -49,7 +49,7 @@ function ProRequest() {
           <KeyValue items={[
             [t('Customer'), r.customer.name],
             [t('Location'), r.serviceMode === 'REMOTE' ? <span key="r" className="inline-flex items-center gap-1"><Wifi className="h-3.5 w-3.5" />{t('Remote')}</span> : <span key="l" className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{r.addressText ? `${r.addressText}, ` : ''}{r.city}{r.match?.distanceKm != null ? ` · ${Math.round(r.match.distanceKm)} km` : ''}</span>],
-            [t('Preferred date'), r.preferredDate ? `${date(r.preferredDate, intl)}${r.preferredTimeWindow ? ` · ${t(r.preferredTimeWindow[0].toUpperCase() + r.preferredTimeWindow.slice(1))}` : ''}` : t('Flexible')],
+            [t('Preferred date'), r.preferredDate ? `${period(r.preferredDate, r.preferredDateTo, intl)}${r.preferredTimeWindow ? ` · ${t(r.preferredTimeWindow[0].toUpperCase() + r.preferredTimeWindow.slice(1))}` : ''}` : t('Flexible')],
             [t('Budget'), r.budgetMinMinor || r.budgetMaxMinor ? [r.budgetMinMinor && money(r.budgetMinMinor, r.currency, intl), r.budgetMaxMinor && money(r.budgetMaxMinor, r.currency, intl)].filter(Boolean).join(' – ') : t('Not specified')],
             [t('Offers so far'), r.offerCount],
             [t('Open until'), date(r.expiresAt, intl)],

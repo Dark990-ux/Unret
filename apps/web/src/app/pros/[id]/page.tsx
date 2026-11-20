@@ -3,6 +3,7 @@
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Clock, Flag, Heart, Languages, MapPin, MessageSquare, Briefcase, Wifi, Zap } from 'lucide-react';
+import { AvailabilityCalendar } from '@/components/calendar';
 import { PriceHint, Rating, VerificationBadges, WEEKDAYS, Badges } from '@/components/domain';
 import { ReportButton } from '@/components/report';
 import { Avatar, Badge, Button, Card, Container, Empty, PageLoader, Stars } from '@/components/ui-exports';
@@ -106,6 +107,15 @@ export default function ProfilePage() {
               ))}
             </ul>
             <p className="mt-2 text-xs text-ink-muted">{t('Indicative prices. The final price is agreed in the offer for your specific request.')}</p>
+          </Card>
+
+          <Card className="p-5 sm:p-6">
+            <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="font-semibold text-ink dark:text-white">{t('Availability')}</h2>
+              <span className="text-xs text-ink-muted">{t('Choose the days you need, then describe the job.')}</span>
+            </div>
+            <AvailabilityCalendar professionalId={p.id} professionalName={p.displayName} acceptingRequests={p.acceptingRequests}
+              services={p.services.map((s) => ({ categoryId: s.categoryId, categoryName: s.categoryName }))} />
           </Card>
 
           {p.portfolio.length > 0 && (

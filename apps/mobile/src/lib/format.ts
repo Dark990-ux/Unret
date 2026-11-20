@@ -11,3 +11,10 @@ export function timeAgo(d: string | Date, l = 'ro-RO') {
   if (s < 86400 * 30) return rtf.format(-Math.round(s / 86400), 'day');
   return date(d, l);
 }
+
+/** "20 Dec" or "20 Dec → 25 Dec" for a preferred date or period. */
+export function period(from: string | null | undefined, to: string | null | undefined, l = 'ro-RO') {
+  if (!from) return null;
+  const f = (d: string) => new Date(d).toLocaleDateString(l, { day: 'numeric', month: 'short', timeZone: 'UTC' });
+  return to && to.slice(0, 10) !== from.slice(0, 10) ? `${f(from)} → ${f(to)}` : f(from);
+}

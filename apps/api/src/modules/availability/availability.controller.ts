@@ -92,6 +92,14 @@ export class AvailabilityController {
     });
   }
 
+  /** Public: month-style calendar of free / partly booked / unavailable days. */
+  @Public()
+  @Get(':professionalId/calendar')
+  calendar(@Param('professionalId') id: string, @Query('from') from?: string, @Query('days') days = '42') {
+    const today = new Date().toISOString().slice(0, 10);
+    return this.availability.calendar(id, from ?? today, Number(days) || 42);
+  }
+
   /** Public: free appointment slots for a professional (shown when comparing offers). */
   @Public()
   @Get(':professionalId/slots')

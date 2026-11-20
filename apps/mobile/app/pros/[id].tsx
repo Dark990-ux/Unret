@@ -1,5 +1,6 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { Image, ScrollView, View } from 'react-native';
+import { AvailabilityCalendar } from '@/components/calendar';
 import { PriceHint, Rating, VerificationBadges } from '@/components/domain';
 import { Avatar, Badge, Button, Card, Empty, Loader, Row, Screen, Section, Stars, Text } from '@/components/ui';
 import { absUrl, api } from '@/lib/api';
@@ -58,6 +59,12 @@ export default function ProProfile() {
           </ScrollView>
         </Section>
       )}
+      <Section title={t('Availability')}>
+        <Card>
+          <AvailabilityCalendar professionalId={p.id} professionalName={p.displayName} acceptingRequests={p.acceptingRequests}
+            services={p.services.map((s: any) => ({ categoryId: s.categoryId, categoryName: s.categoryName }))} />
+        </Card>
+      </Section>
       {p.workingHours.length > 0 && (
         <Section title={t('Working hours')}>
           <Card>{[1, 2, 3, 4, 5, 6, 0].map((d) => { const sl = p.workingHours.filter((h: any) => h.weekday === d); return <Row key={d} style={{ justifyContent: 'space-between' }}><Text variant="small">{t(DAYS[d])}</Text><Text>{sl.length ? sl.map((s: any) => `${s.startTime}–${s.endTime}`).join(', ') : t('Closed')}</Text></Row>; })}</Card>

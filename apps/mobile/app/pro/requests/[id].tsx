@@ -3,9 +3,9 @@ import { useState } from 'react';
 import { Image, Pressable, View } from 'react-native';
 import { DateTimeField } from '@/components/domain';
 import { useTheme } from '@/components/theme';
-import { Alert, Button, Card, Empty, Field, Input, KV, Loader, Row, Screen, Section, Segmented, StatusBadge, Text } from '@/components/ui';
+import { Alert, Badge, Button, Card, Empty, Field, Input, KV, Loader, Row, Screen, Section, Segmented, StatusBadge, Text } from '@/components/ui';
 import { absUrl, api } from '@/lib/api';
-import { date, dateTime, majorToMinor, money } from '@/lib/format';
+import { date, dateTime, majorToMinor, money, period } from '@/lib/format';
 import { useApi } from '@/lib/hooks';
 import { useT } from '@/lib/i18n';
 
@@ -25,12 +25,13 @@ export default function ProRequest() {
     <Screen onRefresh={refresh} refreshing={refreshing}>
       <Text variant="title">{r.title}</Text>
       <Row><StatusBadge status={r.status} /><Text variant="small">{r.categoryName}</Text></Row>
+      {r.directTo && <Badge tone="sun">✦ {t('Sent directly to you from your calendar')}</Badge>}
       <Card>
         <Text style={{ lineHeight: 22 }}>{r.description}</Text>
         <KV label={t('Customer')} value={r.customer.name} />
         <KV label={t('Location')} value={r.serviceMode === 'REMOTE' ? t('Remote') : `${r.addressText ? r.addressText + ', ' : ''}${r.city ?? ''}${r.match?.distanceKm != null ? ` · ${Math.round(r.match.distanceKm)} km` : ''}`} />
         {!r.addressText && r.serviceMode !== 'REMOTE' && <Text variant="small">{t('The exact address is shared once your offer is accepted.')}</Text>}
-        <KV label={t('Preferred date')} value={r.preferredDate ? date(r.preferredDate, intl) : t('Flexible')} />
+        <KV label={t('Preferred date')} value={period(r.preferredDate, r.preferredDateTo, intl) ?? t('Flexible')} />
         <KV label={t('Budget')} value={r.budgetMaxMinor ? `≤ ${money(r.budgetMaxMinor, r.currency, intl)}` : t('Not specified')} />
         <KV label={t('Offers so far')} value={r.offerCount} />
         {r.attachments.length > 0 && <Row>{r.attachments.map((a: any) => <Image key={a.id} source={{ uri: absUrl(a.url)! }} style={{ width: 72, height: 72, borderRadius: 10 }} />)}</Row>}

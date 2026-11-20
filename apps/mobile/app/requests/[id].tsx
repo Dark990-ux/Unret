@@ -4,7 +4,7 @@ import { Alert as RNAlert, View } from 'react-native';
 import { Rating, VerificationBadges } from '@/components/domain';
 import { Alert, Avatar, Badge, Button, Card, Divider, Empty, Field, Input, KV, Loader, Row, Screen, Section, Segmented, Sheet, StatusBadge, Text } from '@/components/ui';
 import { absUrl, api } from '@/lib/api';
-import { date, dateTime, money } from '@/lib/format';
+import { date, dateTime, money, period } from '@/lib/format';
 import { useApi } from '@/lib/hooks';
 import { useT } from '@/lib/i18n';
 import { useRealtime } from '@/lib/realtime';
@@ -37,13 +37,14 @@ export default function RequestDetail() {
     <Screen onRefresh={() => { req.refresh(); offers.refresh(); }} refreshing={req.refreshing}>
       <Text variant="title">{r.title}</Text>
       <Row><StatusBadge status={r.status} /><Text variant="small">{r.categoryName}</Text></Row>
+      {r.directTo && <Badge tone="sun">✦ {t('Sent directly to {name}', { name: r.directTo.name })}</Badge>}
       {err && <Alert>{err}</Alert>}
       {r.status === 'DRAFT' && <Button title={t('Publish request')} onPress={() => run(() => api(`/requests/${id}/publish`, { method: 'POST' }))} loading={busy} />}
       {r.job && <Button title={t('Go to job')} onPress={() => router.push(`/jobs/${r.job.id}`)} />}
 
       <Section title={`${t('Offers')} (${offers.data?.length ?? 0})`}>
         {r.status === 'DRAFT' ? <Empty title={t('This request is a draft')} text={t('Publish it to start receiving offers.')} /> :
-          offers.loading ? <Loader /> : !offers.data?.length ? <Empty title={t('Waiting for offers')} text={t('We have notified matching professionals in your area. You will be notified as soon as an offer arrives.')} /> :
+          offers.loading ? <Loader /> : !offers.data?.length ? <Empty title={t('Waiting for offers')} text={r.directTo ? t('{name} has been notified. You will be notified as soon as they send a quote.', { name: r.directTo.name }) : t('We have notified matching professionals in your area. You will be notified as soon as an offer arrives.')} /> :
           offers.data.map((o) => {
             const p = o.professional; const l = o.latest;
             return (
@@ -84,7 +85,7 @@ export default function RequestDetail() {
         <Card>
           <Text>{r.description}</Text>
           <KV label={t('Location')} value={r.serviceMode === 'REMOTE' ? t('Remote') : [r.addressText, r.city].filter(Boolean).join(', ')} />
-          <KV label={t('Preferred date')} value={r.preferredDate ? date(r.preferredDate, intl) : t('Flexible')} />
+          <KV label={t('Preferred date')} value={period(r.preferredDate, r.preferredDateTo, intl) ?? t('Flexible')} />
           <KV label={t('Budget')} value={r.budgetMaxMinor ? money(r.budgetMaxMinor, r.currency, intl) : t('Not specified')} />
           {open && <KV label={t('Open until')} value={date(r.expiresAt, intl)} />}
         </Card>

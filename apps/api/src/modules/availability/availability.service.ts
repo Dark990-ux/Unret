@@ -96,6 +96,46 @@ export class AvailabilityService {
   }
 
   /**
+   * Day-by-day availability for the public calendar on a professional's profile.
+   * free: working day with nothing booked · partial: some time taken · booked: working day fully taken or blocked
+   * closed: no working hours that day · past: before today.
+   */
+  async calendar(professionalId: string, fromDate: string, days: number) {
+    const pro = await this.prisma.professionalProfile.findUnique({ where: { id: professionalId }, select: { timezone: true, acceptingRequests: true } });
+    if (!pro) throw new BadRequestException('Professional not found');
+    const tz = pro.timezone;
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(fromDate);
+    if (!m) throw new BadRequestException('from must be a date like 2026-12-01');
+    const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+    const n = Math.min(Math.max(days, 1), 92);
+    const dayStart = (i: number) => zonedToUtc(y, mo, d + i, 0, 0, tz);
+    const rangeStart = dayStart(0);
+    const rangeEnd = dayStart(n);
+    const windows = await this.workingWindows(professionalId, rangeStart, rangeEnd);
+    const busy = await this.busy(professionalId, rangeStart, rangeEnd);
+    const free = subtract(windows, busy);
+    const now = new Date();
+    const todayLocal = localParts(now, tz);
+    const todayKey = `${todayLocal.year}-${String(todayLocal.month).padStart(2, '0')}-${String(todayLocal.day).padStart(2, '0')}`;
+    const minutes = (list: Interval[], a: Date, b: Date) =>
+      list.reduce((sum, i) => sum + Math.max(0, Math.min(+i.end, +b) - Math.max(+i.start, +a)) / 60000, 0);
+    const hm = (dt: Date) => { const p = localParts(dt, tz); return `${String(p.hour).padStart(2, '0')}:${String(p.minute).padStart(2, '0')}`; };
+
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const a = dayStart(i), b = dayStart(i + 1);
+      const lp = localParts(new Date(+a + 12 * 3600e3), tz);
+      const date = `${lp.year}-${String(lp.month).padStart(2, '0')}-${String(lp.day).padStart(2, '0')}`;
+      const work = minutes(windows, a, b);
+      const freeMin = minutes(free, a, b);
+      const status = date < todayKey ? 'past' : work === 0 ? 'closed' : freeMin === 0 ? 'booked' : freeMin < work ? 'partial' : 'free';
+      const slots = free.filter((f) => +f.end > +a && +f.start < +b).map((f) => `${hm(new Date(Math.max(+f.start, +a)))}–${hm(new Date(Math.min(+f.end, +b)))}`);
+      out.push({ date, weekday: lp.weekday, status, freeMinutes: Math.round(freeMin), freeSlots: status === 'past' ? [] : slots });
+    }
+    return { timezone: tz, acceptingRequests: pro.acceptingRequests, days: out };
+  }
+
+  /**
    * Availability score in [0,1] used by matching and search ranking.
    * 1.0: free time on the preferred day (or within 3 days if none given);
    * 0.6: free within the following week; 0.3: no working hours defined; 0: fully booked/blocked.

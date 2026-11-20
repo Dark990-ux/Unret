@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { Inbox, MapPin, Paperclip, Wifi } from 'lucide-react';
 import { Badge, Card, Empty, PageHeader, PageLoader, StatusBadge, Tabs } from '@/components/ui-exports';
 import { ProShell } from '@/components/shell';
-import { date, money, timeAgo } from '@/lib/format';
+import { date, money, period, timeAgo } from '@/lib/format';
 import { useApi } from '@/lib/hooks';
 import { useT } from '@/lib/i18n';
 import { useRealtime } from '@/lib/realtime';
@@ -34,6 +34,7 @@ function RequestInbox() {
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-semibold text-ink dark:text-white">{r.title}</span>
                       {!r.viewed && <Badge tone="green">{t('New')}</Badge>}
+                      {r.direct && <Badge tone="amber">✦ {t('Direct request')}</Badge>}
                       {urgency[r.urgency] && <Badge tone={urgency[r.urgency][1]}>{urgency[r.urgency][0]}</Badge>}
                     </div>
                     <div className="mt-0.5 text-sm text-ink-muted">{r.categoryName} · {timeAgo(r.notifiedAt, intl)}</div>
@@ -46,7 +47,7 @@ function RequestInbox() {
                 <p className="mt-2 line-clamp-2 text-sm text-ink-soft dark:text-white/70">{r.description}</p>
                 <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-ink-muted">
                   {r.serviceMode === 'REMOTE' ? <span className="inline-flex items-center gap-1"><Wifi className="h-3.5 w-3.5" />{t('Remote')}</span> : <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{r.city}{r.distanceKm != null && ` · ${r.distanceKm} km`}</span>}
-                  {r.preferredDate && <span>{t('Preferred date')}: {date(r.preferredDate, intl)}</span>}
+                  {r.preferredDate && <span>{t('Preferred date')}: {period(r.preferredDate, r.preferredDateTo, intl)}</span>}
                   {r.attachmentCount > 0 && <span className="inline-flex items-center gap-1"><Paperclip className="h-3.5 w-3.5" />{r.attachmentCount}</span>}
                   <span>{t('{n} offers so far', { n: r.offerCount })}</span>
                 </div>

@@ -45,3 +45,10 @@ export function responseTime(minutes: number | null | undefined) {
   if (minutes < 1440) return `${Math.round(minutes / 60)} h`;
   return `${Math.round(minutes / 1440)} d`;
 }
+
+/** "20 Dec" or "20 Dec → 25 Dec" for a preferred date or period. */
+export function period(from: string | null | undefined, to: string | null | undefined, locale = 'ro-RO') {
+  if (!from) return null;
+  const f = (d: string) => new Date(d).toLocaleDateString(locale, { day: 'numeric', month: 'short', timeZone: 'UTC' });
+  return to && to.slice(0, 10) !== from.slice(0, 10) ? `${f(from)} → ${f(to)}` : f(from);
+}

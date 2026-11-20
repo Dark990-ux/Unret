@@ -36,7 +36,7 @@ export class SchedulerService {
     if (!this.enabled) return;
     const cutoff = new Date(Date.now() - MATCH_EXPANSION_DELAY_HOURS * 3600e3);
     const candidates = await this.prisma.serviceRequest.findMany({
-      where: { status: { in: ['PUBLISHED', 'OFFERS_RECEIVED'] }, matches: { some: { notifiedAt: { lt: cutoff } }, none: { notifiedAt: { gte: cutoff } } } },
+      where: { status: { in: ['PUBLISHED', 'OFFERS_RECEIVED'] }, targetProfessionalId: null, matches: { some: { notifiedAt: { lt: cutoff } }, none: { notifiedAt: { gte: cutoff } } } },
       include: { _count: { select: { offers: true } } },
       take: 200,
     });
