@@ -18,6 +18,7 @@ export default function Availability() {
   const appts = useApi<any[]>('/availability/me/appointments');
   const [rules, setRules] = useState<Rule[]>([]);
   const [block, setBlock] = useState<{ start: Date | null; end: Date | null }>({ start: null, end: null });
+  const [period, setPeriod] = useState<{ start: Date | null; end: Date | null; note: string }>({ start: null, end: null, note: '' });
   const [msg, setMsg] = useState<{ tone: 'green' | 'red'; text: string } | null>(null);
   useEffect(() => { if (data) setRules(data.rules.filter((r: any) => !r.isEmergency).map(({ weekday, startTime, endTime }: Rule) => ({ weekday, startTime, endTime }))); }, [data]);
   if (loading || !data) return <Loader />;
@@ -33,6 +34,25 @@ export default function Availability() {
         <Row style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}><Text style={{ flex: 1 }} variant="label">{t('Emergency availability')}</Text><Switch value={data.settings.emergencyAvailable} onValueChange={(v) => setting('emergencyAvailable', v)} trackColor={{ true: th.brand }} /></Row>
         <Text variant="small">{t('Times are in {tz}.', { tz: data.settings.timezone })}</Text>
       </Card>
+      <Section title={t('Open for bookings')}>
+        <Card>
+          <Text variant="small">{t('Add the periods when customers can book you, for example 15 Dec → 15 Jan. If you add none, all your working days are bookable.')}</Text>
+          {(data.periods ?? []).map((p: any) => (
+            <Row key={p.id} style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
+              <Text style={{ flex: 1 }}>✦ {p.startDate.slice(0, 10)} → {p.endDate.slice(0, 10)}{p.note ? ` · ${p.note}` : ''}</Text>
+              <Button small variant="ghost" title="✕" onPress={() => run(() => api(`/availability/me/periods/${p.id}`, { method: 'DELETE' }), t('Removed.'))} />
+            </Row>
+          ))}
+          <Field label={t('From')}><DateTimeField mode="date" value={period.start} onChange={(start) => setPeriod({ ...period, start })} /></Field>
+          <Field label={t('To')}><DateTimeField mode="date" value={period.end} onChange={(end) => setPeriod({ ...period, end })} /></Field>
+          <Field label={t('Note (optional)')}><Input value={period.note} onChangeText={(note) => setPeriod({ ...period, note })} placeholder={t('e.g. Winter availability')} maxLength={120} /></Field>
+          <Button title={t('Add period')} variant="soft" disabled={!period.start || !period.end} onPress={() => run(async () => {
+            const d = (x: Date) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+            await api('/availability/me/periods', { body: { startDate: d(period.start!), endDate: d(period.end!), note: period.note || undefined } });
+            setPeriod({ start: null, end: null, note: '' });
+          }, t('Period added.'))} />
+        </Card>
+      </Section>
       <Section title={t('Weekly working hours')}>
         <Card>
           {[1, 2, 3, 4, 5, 6, 0].map((d) => {

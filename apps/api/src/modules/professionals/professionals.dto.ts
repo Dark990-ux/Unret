@@ -10,7 +10,9 @@ import { PageQuery } from '../../common/pagination';
 export class OnboardDto {
   @ApiProperty({ enum: ProfessionalAccountType }) @IsEnum(ProfessionalAccountType) accountType: ProfessionalAccountType;
   @ApiProperty({ required: false }) @IsOptional() @IsString() @Length(2, 160) businessName?: string;
-  @ApiProperty({ type: [String] }) @IsArray() @ArrayMinSize(1) @ArrayMaxSize(15) @IsString({ each: true }) categoryIds: string[];
+  @ApiProperty({ type: [String] }) @IsArray() @ArrayMaxSize(15) @IsString({ each: true }) categoryIds: string[];
+  @ApiProperty({ required: false, description: 'A service not in the list, described by the professional ("Other")' })
+  @IsOptional() @IsString() @Length(3, 80) otherService?: string;
   @ApiProperty() @IsString() @Length(2, 120) city: string;
   @ApiProperty() @IsLatitude() lat: number;
   @ApiProperty() @IsLongitude() lng: number;
@@ -39,6 +41,7 @@ export class ServiceItemDto {
   @IsEnum(PricingType) pricingType: PricingType;
   @IsOptional() @IsInt() @Min(0) indicativePriceMinor?: number;
   @IsOptional() @IsBoolean() isPrimary?: boolean;
+  @IsOptional() @IsString() @Length(3, 80) customName?: string;
 }
 export class ServicesDto {
   @IsArray() @ArrayMinSize(1) @ArrayMaxSize(15) @ValidateNested({ each: true }) @Type(() => ServiceItemDto) services: ServiceItemDto[];

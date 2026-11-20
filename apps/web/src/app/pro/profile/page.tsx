@@ -29,7 +29,7 @@ function ProfileEditor() {
   useEffect(() => {
     if (!p) return;
     setF({ businessName: p.businessName ?? '', headline: p.headline ?? '', biography: p.biography ?? '', experienceYears: p.experienceYears ?? '', languages: p.languages.join(', '), city: p.city ?? '', baseLat: p.baseLat, baseLng: p.baseLng, serviceRadiusKm: p.serviceRadiusKm, remoteAvailable: p.remoteAvailable });
-    setServices(p.services.map((s: any) => ({ categoryId: s.categoryId, description: s.description ?? '', pricingType: s.pricingType, price: s.indicativePriceMinor != null ? String(s.indicativePriceMinor / 100) : '', isPrimary: s.isPrimary })));
+    setServices(p.services.map((s: any) => ({ categoryId: s.categoryId, description: s.description ?? '', pricingType: s.pricingType, price: s.indicativePriceMinor != null ? String(s.indicativePriceMinor / 100) : '', isPrimary: s.isPrimary, customName: s.customName ?? '' })));
   }, [p]);
 
   if (loading || !p || !f) return <PageLoader />;
@@ -48,7 +48,7 @@ function ProfileEditor() {
   };
   const saveServices = async () => {
     try {
-      setData(await api('/professionals/me/services', { method: 'PUT', body: { services: services.map((s) => ({ categoryId: s.categoryId, description: s.description || undefined, pricingType: s.pricingType, indicativePriceMinor: s.price ? majorToMinor(s.price) : undefined, isPrimary: s.isPrimary })) } }));
+      setData(await api('/professionals/me/services', { method: 'PUT', body: { services: services.map((s) => ({ categoryId: s.categoryId, description: s.description || undefined, pricingType: s.pricingType, indicativePriceMinor: s.price ? majorToMinor(s.price) : undefined, isPrimary: s.isPrimary, customName: s.customName?.trim() || undefined })) } }));
       flash('green', t('Services saved.'));
     } catch (e) { flash('red', (e as Error).message); }
   };
@@ -86,7 +86,7 @@ function ProfileEditor() {
             return (
               <div key={s.categoryId} className="space-y-3 rounded-xl border border-surface-line p-4 dark:border-white/10">
                 <div className="flex items-center justify-between gap-2">
-                  <div className="font-medium text-ink dark:text-white">{cat?.name ?? '…'} {s.isPrimary && <span className="text-xs text-brand-700">({t('main service')})</span>}</div>
+                  <div className="font-medium text-ink dark:text-white">{(cat?.slug === 'other' && s.customName) || cat?.name || '…'} {s.isPrimary && <span className="text-xs text-brand-700">({t('main service')})</span>}</div>
                   <div className="flex gap-1">
                     {!s.isPrimary && <Button size="sm" variant="ghost" onClick={() => setServices(services.map((x, j) => ({ ...x, isPrimary: i === j })))}>{t('Make main')}</Button>}
                     {services.length > 1 && <Button size="sm" variant="ghost" onClick={() => setServices(services.filter((_, j) => j !== i))} aria-label={t('Remove')}><Trash2 className="h-4 w-4" /></Button>}
@@ -98,11 +98,14 @@ function ProfileEditor() {
                   </Select>
                   {s.pricingType !== 'ON_REQUEST' && <Input type="number" min={0} placeholder={t('Price (RON)')} value={s.price} onChange={(e) => setServices(services.map((x, j) => (j === i ? { ...x, price: e.target.value } : x)))} aria-label={t('Price (RON)')} />}
                 </div>
+                {cat?.slug === 'other' && (
+                  <Input placeholder={t('What exactly do you offer?')} aria-label={t('What exactly do you offer?')} value={s.customName} maxLength={80} onChange={(e) => setServices(services.map((x, j) => (j === i ? { ...x, customName: e.target.value } : x)))} />
+                )}
                 <Input placeholder={t('Short description (optional)')} value={s.description} onChange={(e) => setServices(services.map((x, j) => (j === i ? { ...x, description: e.target.value } : x)))} />
               </div>
             );
           })}
-          <Select value="" onChange={(e) => e.target.value && setServices([...services, { categoryId: e.target.value, description: '', pricingType: 'ON_REQUEST', price: '', isPrimary: false }])} aria-label={t('Add a service')}>
+          <Select value="" onChange={(e) => e.target.value && setServices([...services, { categoryId: e.target.value, description: '', pricingType: 'ON_REQUEST', price: '', isPrimary: false, customName: '' }])} aria-label={t('Add a service')}>
             <option value="">+ {t('Add a service')}</option>
             {tree.map((g) => <optgroup key={g.id} label={g.name}>{g.children.filter((c) => !services.some((s) => s.categoryId === c.id)).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</optgroup>)}
           </Select>

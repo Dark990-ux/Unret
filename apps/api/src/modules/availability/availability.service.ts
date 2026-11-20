@@ -35,6 +35,27 @@ export class AvailabilityService {
     return this.getRules(professionalId);
   }
 
+  /** Upcoming periods the professional opened for bookings. */
+  listPeriods(professionalId: string) {
+    const today = new Date(new Date().toISOString().slice(0, 10));
+    return this.prisma.availabilityPeriod.findMany({ where: { professionalId, endDate: { gte: today } }, orderBy: { startDate: 'asc' } });
+  }
+
+  async addPeriod(professionalId: string, startDate: string, endDate: string, note?: string) {
+    const ok = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
+    if (!ok(startDate) || !ok(endDate)) throw new BadRequestException('Use dates like 2026-12-15');
+    if (endDate < startDate) throw new BadRequestException('The end date must be on or after the start date');
+    if (endDate < new Date().toISOString().slice(0, 10)) throw new BadRequestException('This period is already over');
+    const count = await this.prisma.availabilityPeriod.count({ where: { professionalId } });
+    if (count >= 30) throw new BadRequestException('You can have at most 30 booking periods');
+    return this.prisma.availabilityPeriod.create({ data: { professionalId, startDate: new Date(startDate), endDate: new Date(endDate), note } });
+  }
+
+  async removePeriod(professionalId: string, id: string) {
+    await this.prisma.availabilityPeriod.deleteMany({ where: { id, professionalId } });
+    return { ok: true };
+  }
+
   listBlocks(professionalId: string) {
     return this.prisma.availabilityBlock.findMany({ where: { professionalId, endsAt: { gte: new Date() } }, orderBy: { startsAt: 'asc' } });
   }
@@ -112,6 +133,8 @@ export class AvailabilityService {
     const rangeStart = dayStart(0);
     const rangeEnd = dayStart(n);
     const windows = await this.workingWindows(professionalId, rangeStart, rangeEnd);
+    const periods = (await this.listPeriods(professionalId)).map((p) => ({ start: p.startDate.toISOString().slice(0, 10), end: p.endDate.toISOString().slice(0, 10), note: p.note }));
+    const inPeriod = (date: string) => !periods.length || periods.some((p) => date >= p.start && date <= p.end);
     const busy = await this.busy(professionalId, rangeStart, rangeEnd);
     const free = subtract(windows, busy);
     const now = new Date();
@@ -128,11 +151,13 @@ export class AvailabilityService {
       const date = `${lp.year}-${String(lp.month).padStart(2, '0')}-${String(lp.day).padStart(2, '0')}`;
       const work = minutes(windows, a, b);
       const freeMin = minutes(free, a, b);
-      const status = date < todayKey ? 'past' : work === 0 ? 'closed' : freeMin === 0 ? 'booked' : freeMin < work ? 'partial' : 'free';
+      const open = inPeriod(date);
+      const status = date < todayKey ? 'past' : work === 0 || !open ? 'closed' : freeMin === 0 ? 'booked' : freeMin < work ? 'partial' : 'free';
       const slots = free.filter((f) => +f.end > +a && +f.start < +b).map((f) => `${hm(new Date(Math.max(+f.start, +a)))}–${hm(new Date(Math.min(+f.end, +b)))}`);
-      out.push({ date, weekday: lp.weekday, status, freeMinutes: Math.round(freeMin), freeSlots: status === 'past' ? [] : slots });
+      const bookable = status === 'free' || status === 'partial';
+      out.push({ date, weekday: lp.weekday, status, outsidePeriods: work > 0 && !open, freeMinutes: bookable ? Math.round(freeMin) : 0, freeSlots: bookable ? slots : [] });
     }
-    return { timezone: tz, acceptingRequests: pro.acceptingRequests, days: out };
+    return { timezone: tz, acceptingRequests: pro.acceptingRequests, periods, days: out };
   }
 
   /**

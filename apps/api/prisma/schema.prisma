@@ -298,6 +298,7 @@ model ProfessionalProfile {
   portfolio         PortfolioItem[]
   availabilityRules AvailabilityRule[]
   availabilityBlock AvailabilityBlock[]
+  bookingPeriods    AvailabilityPeriod[]
   appointments      Appointment[]
   verifications     Verification[]
   matches           RequestMatch[]
@@ -410,6 +411,8 @@ model ProfessionalService {
   indicativePriceMinor Int?
   currency             String      @db.Char(3)
   isPrimary            Boolean     @default(false)
+  /// What the professional typed when choosing "Other" (shown instead of the category name).
+  customName           String?
   createdAt            DateTime    @default(now())
 
   professional ProfessionalProfile @relation(fields: [professionalId], references: [id], onDelete: Cascade)
@@ -460,6 +463,21 @@ model AvailabilityBlock {
   professional ProfessionalProfile @relation(fields: [professionalId], references: [id], onDelete: Cascade)
 
   @@index([professionalId, startsAt])
+}
+
+/// Date ranges a professional opens for bookings. When any exist, only these days are bookable
+/// (still within weekly working hours).
+model AvailabilityPeriod {
+  id             String   @id @default(uuid())
+  professionalId String
+  startDate      DateTime @db.Date
+  endDate        DateTime @db.Date
+  note           String?
+  createdAt      DateTime @default(now())
+
+  professional ProfessionalProfile @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+
+  @@index([professionalId, endDate])
 }
 
 /// Reserved slots. Double booking is prevented by an exclusion constraint

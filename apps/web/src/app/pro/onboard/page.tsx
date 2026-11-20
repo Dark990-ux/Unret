@@ -21,6 +21,8 @@ function Onboard() {
   const { tree } = useCategories();
   const [f, setF] = useState({ accountType: 'INDIVIDUAL', businessName: '', registrationNumber: '', city: me?.city ?? '', lat: 0, lng: 0, serviceRadiusKm: 25, remoteAvailable: false });
   const [cats, setCats] = useState<string[]>([]);
+  const [otherOn, setOtherOn] = useState(false);
+  const [other, setOther] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -30,11 +32,12 @@ function Onboard() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErr(null);
-    if (!cats.length) return setErr(t('Choose at least one service.'));
+    if (!cats.length && !(otherOn && other.trim())) return setErr(t('Choose at least one service.'));
+    if (otherOn && other.trim().length > 0 && other.trim().length < 3) return setErr(t('Describe your other service in at least 3 characters.'));
     if (!f.lat) return setErr(t('Choose your city.'));
     setBusy(true);
     try {
-      await api('/professionals/onboard', { body: { ...f, categoryIds: cats, businessName: f.businessName || undefined, registrationNumber: f.registrationNumber || undefined } });
+      await api('/professionals/onboard', { body: { ...f, categoryIds: cats, otherService: otherOn && other.trim() ? other.trim() : undefined, businessName: f.businessName || undefined, registrationNumber: f.registrationNumber || undefined } });
       await reload();
       setMode('professional');
       router.push('/pro');
@@ -70,7 +73,7 @@ function Onboard() {
 
         <Card className="space-y-4 p-5 sm:p-6">
           <h2 className="font-semibold text-ink dark:text-white">2. {t('Which services do you offer?')}</h2>
-          {tree.map((p) => (
+          {tree.filter((p) => p.slug !== 'other-services').map((p) => (
             <fieldset key={p.id}>
               <legend className="mb-2 text-sm font-medium text-ink-soft dark:text-white/70">{p.icon} {p.name}</legend>
               <div className="flex flex-wrap gap-2">
@@ -83,6 +86,20 @@ function Onboard() {
               </div>
             </fieldset>
           ))}
+          <fieldset>
+            <legend className="mb-2 text-sm font-medium text-ink-soft dark:text-white/70">✨ {t('Other')}</legend>
+            <button type="button" onClick={() => setOtherOn((x) => !x)} aria-pressed={otherOn}
+              className={cx('rounded-full border px-3 py-1.5 text-sm', otherOn ? 'border-accent-600 bg-accent-500 text-accent-ink' : 'border-dashed border-surface-line text-ink-soft hover:border-brand-600 dark:border-white/20 dark:text-white/70')}>
+              ＋ {t('Other — describe your service')}
+            </button>
+            {otherOn && (
+              <div className="mt-3 max-w-md">
+                <Field label={t('What exactly do you offer?')} hint={t('e.g. Piano tuning, Pool maintenance, Drone filming')} required>
+                  <Input id="other-service" value={other} onChange={(e) => setOther(e.target.value)} maxLength={80} autoFocus />
+                </Field>
+              </div>
+            )}
+          </fieldset>
           <p className="text-xs text-ink-muted">🎓 {t('Regulated service: you receive requests after your qualification is verified.')}</p>
         </Card>
 
@@ -97,7 +114,10 @@ function Onboard() {
           <Checkbox label={t('I also offer services remotely / online')} checked={f.remoteAvailable} onChange={(e) => setF({ ...f, remoteAvailable: e.target.checked })} />
         </Card>
         {err && <Alert>{err}</Alert>}
-        <div className="flex justify-end"><Button type="submit" size="lg" loading={busy}>{t('Create professional profile')}</Button></div>
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
+          <Button type="button" variant="ghost" onClick={() => router.back()}>‹ {t('Back')}</Button>
+          <Button type="submit" size="lg" loading={busy}>{t('Create professional profile')}</Button>
+        </div>
       </form>
     </Container>
   );

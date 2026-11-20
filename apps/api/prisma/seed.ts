@@ -50,6 +50,10 @@ const CATEGORIES: Cat[] = [
     { slug: 'beauty-services', en: 'Beauty services', ro: 'Servicii de înfrumusețare', icon: '💇' },
     { slug: 'event-services', en: 'Event services', ro: 'Organizare evenimente', icon: '🎉' },
   ] },
+  // Professionals describe services that aren't listed yet; admins can later promote frequent ones to real categories.
+  { slug: 'other-services', en: 'Other', ro: 'Altele', icon: '✨', remote: true, children: [
+    { slug: 'other', en: 'Something else', ro: 'Altceva', icon: '✨', remote: true },
+  ] },
 ];
 
 async function upsertCategory(c: Cat, parentId: string | null, order: number): Promise<void> {

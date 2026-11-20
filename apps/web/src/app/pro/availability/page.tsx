@@ -7,7 +7,7 @@ import { WEEKDAYS } from '@/components/domain';
 import { Alert, Button, Card, Checkbox, Field, Input, PageHeader, PageLoader, StatusBadge } from '@/components/ui-exports';
 import { ProShell } from '@/components/shell';
 import { api } from '@/lib/api';
-import { dateTime, fromLocalInput } from '@/lib/format';
+import { date, dateTime, fromLocalInput } from '@/lib/format';
 import { useApi } from '@/lib/hooks';
 import { useT } from '@/lib/i18n';
 
@@ -19,11 +19,12 @@ type Rule = { weekday: number; startTime: string; endTime: string; isEmergency?:
 
 function Availability() {
   const { t, intl } = useT();
-  const { data, loading, reload } = useApi<{ rules: Rule[]; blocks: any[]; settings: any }>('/availability/me');
+  const { data, loading, reload } = useApi<{ rules: Rule[]; blocks: any[]; periods: any[]; settings: any }>('/availability/me');
   const appts = useApi<any[]>('/availability/me/appointments');
   const [rules, setRules] = useState<Rule[]>([]);
   const [settings, setSettings] = useState<any>(null);
   const [block, setBlock] = useState({ start: '', end: '', reason: '' });
+  const [period, setPeriod] = useState({ start: '', end: '', note: '' });
   const [msg, setMsg] = useState<{ tone: 'green' | 'red'; text: string } | null>(null);
 
   useEffect(() => { if (data) { setRules(data.rules.map(({ weekday, startTime, endTime, isEmergency }) => ({ weekday, startTime, endTime, isEmergency }))); setSettings(data.settings); } }, [data]);
@@ -39,6 +40,29 @@ function Availability() {
       {msg && <div className="mb-4"><Alert tone={msg.tone}>{msg.text}</Alert></div>}
       <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
         <div className="space-y-6">
+          <Card className="space-y-4 p-5 sm:p-6">
+            <div>
+              <h2 className="font-semibold text-ink dark:text-white">✦ {t('Open for bookings')}</h2>
+              <p className="mt-1 text-sm text-ink-muted">{t('Add the periods when customers can book you, for example 15 Dec → 15 Jan. If you add none, all your working days are bookable.')}</p>
+            </div>
+            {(data.periods ?? []).length > 0 && (
+              <ul className="divide-y divide-surface-line text-sm dark:divide-white/10">
+                {data.periods.map((p) => (
+                  <li key={p.id} className="flex items-center justify-between py-2">
+                    <span>{date(p.startDate.slice(0, 10) + 'T12:00:00Z', intl)} → {date(p.endDate.slice(0, 10) + 'T12:00:00Z', intl)}{p.note && <span className="text-ink-muted"> · {p.note}</span>}</span>
+                    <button onClick={() => run(() => api(`/availability/me/periods/${p.id}`, { method: 'DELETE' }), t('Removed.'))} className="p-1 text-ink-muted hover:text-red-600" aria-label={t('Remove')}><Trash2 className="h-4 w-4" /></button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="grid gap-3 sm:grid-cols-[1fr_1fr_1.2fr_auto] sm:items-end">
+              <Field label={t('From')}><Input id="period-from" type="date" min={new Date().toISOString().slice(0, 10)} value={period.start} onChange={(e) => setPeriod({ ...period, start: e.target.value })} /></Field>
+              <Field label={t('To')}><Input id="period-to" type="date" min={period.start || new Date().toISOString().slice(0, 10)} value={period.end} onChange={(e) => setPeriod({ ...period, end: e.target.value })} /></Field>
+              <Field label={t('Note (optional)')}><Input id="period-note" value={period.note} maxLength={120} placeholder={t('e.g. Winter availability')} onChange={(e) => setPeriod({ ...period, note: e.target.value })} /></Field>
+              <Button variant="secondary" disabled={!period.start || !period.end} onClick={() => run(async () => { await api('/availability/me/periods', { body: { startDate: period.start, endDate: period.end, note: period.note || undefined } }); setPeriod({ start: '', end: '', note: '' }); }, t('Period added.'))}>{t('Add period')}</Button>
+            </div>
+          </Card>
+
           <Card className="space-y-4 p-5 sm:p-6">
             <h2 className="font-semibold text-ink dark:text-white">{t('Weekly working hours')}</h2>
             {order.map((d) => {

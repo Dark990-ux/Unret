@@ -74,7 +74,10 @@ export default function NewRequest() {
       </Card>
       {err && <Alert>{err}</Alert>}
       <Button title={t('Publish request')} onPress={() => submit(true)} loading={busy} disabled={!f.categoryId || f.title.length < 5 || f.description.length < 20} />
-      <Button title={t('Save as draft')} variant="ghost" onPress={() => submit(false)} disabled={busy || !f.categoryId || f.title.length < 5} />
+      <Row style={{ flexWrap: 'nowrap' }}>
+        <Button title={`‹ ${t('Back')}`} variant="outline" onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))} style={{ flex: 1 }} />
+        <Button title={t('Save as draft')} variant="ghost" onPress={() => submit(false)} disabled={busy || !f.categoryId || f.title.length < 5} style={{ flex: 1 }} />
+      </Row>
       <View style={{ height: 20 }} />
     </Screen>
   );

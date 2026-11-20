@@ -7,6 +7,7 @@ import { pageResult, paginate } from '../../common/pagination';
 import { PrismaService } from '../../common/prisma.service';
 import { CategoriesService } from '../categories/categories.service';
 import { StorageService } from '../files/storage.service';
+import { AvailabilityService } from '../availability/availability.service';
 import { MatchingService } from '../matching/matching.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CreateRequestDto, InboxQuery, ListRequestsQuery, UpdateRequestDto } from './requests.dto';
@@ -19,6 +20,7 @@ export class RequestsService {
     private prisma: PrismaService,
     private categories: CategoriesService,
     private matching: MatchingService,
+    private availability: AvailabilityService,
     private storage: StorageService,
     private notifications: NotificationsService,
     private audit: AuditService,
@@ -30,7 +32,10 @@ export class RequestsService {
     for (const k of dto.attachmentKeys ?? []) this.storage.assertOwned(k, user.id, 'request');
     const { attachmentKeys, publish, preferredDate, preferredDateTo, professionalId, ...rest } = dto;
     if (preferredDate && preferredDateTo && new Date(preferredDateTo) < new Date(preferredDate)) throw new BadRequestException('The end date must be on or after the start date');
-    if (professionalId) await this.assertDirectTarget(user, professionalId, dto.categoryId, u.countryCode);
+    if (professionalId) {
+      await this.assertDirectTarget(user, professionalId, dto.categoryId, u.countryCode);
+      if (preferredDate) await this.assertPeriodBookable(professionalId, preferredDate, preferredDateTo ?? preferredDate);
+    }
 
     const req = await this.prisma.serviceRequest.create({
       data: {
@@ -252,6 +257,23 @@ export class RequestsService {
       orderBy: [{ included: 'desc' }, { score: 'desc' }],
       include: { professional: { select: { id: true, businessName: true, city: true, user: { select: { name: true } } } } },
     });
+  }
+
+  /**
+   * A period sent from the calendar must start and end on bookable days, and at least half of the
+   * working days in it must still be free, so customers don't request a mostly booked period.
+   */
+  private async assertPeriodBookable(professionalId: string, from: string, to: string) {
+    const start = from.slice(0, 10), end = to.slice(0, 10);
+    const days = Math.round((Date.parse(end) - Date.parse(start)) / 864e5) + 1;
+    if (days > 92) throw new BadRequestException('Please choose a period of at most 3 months');
+    const cal = await this.availability.calendar(professionalId, start, days);
+    const bookable = (s: string) => s === 'free' || s === 'partial';
+    const first = cal.days[0], last = cal.days[cal.days.length - 1];
+    if (!first || !last || !bookable(first.status) || !bookable(last.status)) throw new BadRequestException('The start and end days must be days when this professional is available');
+    const working = cal.days.filter((d) => d.status !== 'closed' && d.status !== 'past');
+    const free = working.filter((d) => bookable(d.status));
+    if (free.length * 2 < working.length) throw new BadRequestException('Most of this period is already booked. Please choose other dates.');
   }
 
   /** A direct request must go to an active professional who offers the service and holds any required verification. */

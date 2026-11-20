@@ -11,7 +11,8 @@ import { CitySelect } from './domain';
 import { Alert, Button, Field, Input, Modal, Select, Textarea, cx } from './ui';
 
 type DayStatus = 'free' | 'partial' | 'booked' | 'closed' | 'past';
-interface Day { date: string; weekday: number; status: DayStatus; freeMinutes: number; freeSlots: string[] }
+interface Day { date: string; weekday: number; status: DayStatus; outsidePeriods?: boolean; freeMinutes: number; freeSlots: string[] }
+interface Period { start: string; end: string; note: string | null }
 
 const pad = (n: number) => String(n).padStart(2, '0');
 const ymd = (y: number, m: number, d: number) => `${y}-${pad(m)}-${pad(d)}`;
@@ -33,13 +34,14 @@ export function AvailabilityCalendar({ professionalId, professionalName, service
   const [end, setEnd] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  const [periods, setPeriods] = useState<Period[]>([]);
 
   useEffect(() => {
     const key = ymd(cursor.y, cursor.m, 1);
     if (days[key]) return;
     setLoading(true);
-    api<{ days: Day[] }>(`/availability/${professionalId}/calendar`, { query: { from: key, days: daysIn(cursor.y, cursor.m) } })
-      .then((r) => setDays((d) => ({ ...d, ...Object.fromEntries(r.days.map((x) => [x.date, x])) })))
+    api<{ days: Day[]; periods?: Period[] }>(`/availability/${professionalId}/calendar`, { query: { from: key, days: daysIn(cursor.y, cursor.m) } })
+      .then((r) => { setDays((d) => ({ ...d, ...Object.fromEntries(r.days.map((x) => [x.date, x])) })); if (r.periods) setPeriods(r.periods); })
       .catch(() => undefined)
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -61,7 +63,10 @@ export function AvailabilityCalendar({ professionalId, professionalName, service
     setEnd(date);
   };
   const last = end ?? start;
-  const workDays = start && last ? Object.values(days).filter((d) => d.date >= start && d.date <= last && selectable(d)).length : 0;
+  const inRangeDays = start && last ? Object.values(days).filter((d) => d.date >= start && d.date <= last) : [];
+  const workDays = inRangeDays.filter((d) => selectable(d)).length;
+  const workingInRange = inRangeDays.filter((d) => d.status !== 'closed' && d.status !== 'past').length;
+  const mostlyBooked = workDays * 2 < workingInRange;
   const fmt = (s: string) => new Date(s + 'T12:00:00Z').toLocaleDateString(intl, { day: 'numeric', month: 'short', timeZone: 'UTC' });
   const label = start ? (end && end !== start ? `${fmt(start)} → ${fmt(end)}` : fmt(start)) : '';
   const statusLabel: Record<DayStatus, string> = { free: t('Available'), partial: t('Partly booked'), booked: t('Fully booked'), closed: t('Not working'), past: t('Past') };
@@ -73,6 +78,12 @@ export function AvailabilityCalendar({ professionalId, professionalName, service
 
   return (
     <div className="max-w-xl space-y-3">
+      {periods.length > 0 && (
+        <div className="rounded-xl bg-accent-100 px-3 py-2 text-sm text-ink dark:bg-accent-500/15 dark:text-white">
+          <div className="font-semibold">✦ {t('Open for bookings')}</div>
+          {periods.map((p) => <div key={p.start} className="text-xs text-ink-soft dark:text-white/70">{fmt(p.start)} → {fmt(p.end)}{p.note ? ` · ${p.note}` : ''}</div>)}
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <button onClick={() => setCursor(({ y, m }) => (m === 1 ? { y: y - 1, m: 12 } : { y, m: m - 1 }))} disabled={monthIndex <= 0} aria-label={t('Previous month')} className="rounded-lg p-1.5 hover:bg-surface-sunk disabled:opacity-30 dark:hover:bg-white/5"><ChevronLeft className="h-5 w-5" /></button>
         <div className="font-semibold capitalize text-ink dark:text-white" aria-live="polite">{monthName}{loading ? ' …' : ''}</div>
@@ -87,7 +98,7 @@ export function AvailabilityCalendar({ professionalId, professionalName, service
           const inRange = !!start && date >= start && date <= (end ?? start);
           const edge = date === start || date === end;
           return (
-            <button key={date} onClick={() => tap(date)} aria-pressed={inRange} aria-label={`${fmt(date)}: ${statusLabel[status]}${d?.freeSlots.length ? ` (${d.freeSlots.join(', ')})` : ''}`}
+            <button key={date} onClick={() => tap(date)} aria-pressed={inRange} aria-label={`${fmt(date)}: ${d?.outsidePeriods ? t('Not taking bookings') : statusLabel[status]}${d?.freeSlots.length ? ` (${d.freeSlots.join(', ')})` : ''}`}
               title={d?.freeSlots.length ? d.freeSlots.join(', ') : statusLabel[status]}
               className={cx('relative h-10 rounded-lg text-sm tabular-nums transition-colors sm:h-11',
                 edge ? 'bg-brand-700 font-semibold text-white dark:bg-brand-400 dark:text-brand-950'
@@ -113,8 +124,9 @@ export function AvailabilityCalendar({ professionalId, professionalName, service
           <div className="text-sm font-medium text-ink dark:text-white">{label} · {t('{n} working days available', { n: workDays })}</div>
           {!end && <p className="text-xs text-ink-muted">{t('Tap another day to choose an end date, or continue with one day.')}</p>}
           {days[start]?.freeSlots.length ? <p className="text-xs text-ink-muted">{t('Free on {date}: {slots}', { date: fmt(start), slots: days[start].freeSlots.join(', ') })}</p> : null}
+          {mostlyBooked && <p className="text-xs text-red-600">{t('Most of this period is already booked. Please choose other dates.')}</p>}
           <div className="flex gap-2">
-            <Button className="flex-1 !bg-accent-500 !text-accent-ink hover:!bg-accent-400" onClick={request}><Sparkles className="h-4 w-4" />{t('Request these dates')}</Button>
+            <Button className="flex-1 !bg-accent-500 !text-accent-ink hover:!bg-accent-400" onClick={request} disabled={mostlyBooked}><Sparkles className="h-4 w-4" />{t('Request these dates')}</Button>
             <Button variant="ghost" onClick={() => { setStart(null); setEnd(null); }}>{t('Clear')}</Button>
           </div>
         </div>
@@ -166,7 +178,7 @@ function RequestPeriodModal({ open, onClose, professionalId, professionalName, s
         </div>
         {err && <Alert>{err}</Alert>}
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={onClose}>{t('Cancel')}</Button>
+          <Button type="button" variant="outline" onClick={onClose}>‹ {t('Back to calendar')}</Button>
           <Button type="submit" loading={busy} className="!bg-accent-500 !text-accent-ink hover:!bg-accent-400">{t('Send request')}</Button>
         </div>
       </form>

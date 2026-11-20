@@ -22,6 +22,11 @@ class BlockDto {
   @IsDateString() endsAt: string;
   @IsOptional() @IsString() @MaxLength(200) reason?: string;
 }
+class PeriodDto {
+  @Matches(/^\d{4}-\d{2}-\d{2}$/) startDate: string;
+  @Matches(/^\d{4}-\d{2}-\d{2}$/) endDate: string;
+  @IsOptional() @IsString() @MaxLength(120) note?: string;
+}
 class SettingsDto {
   @IsOptional() @IsBoolean() acceptingRequests?: boolean;
   @IsOptional() @IsBoolean() emergencyAvailable?: boolean;
@@ -38,15 +43,16 @@ export class AvailabilityController {
   @Get('me')
   async mine(@CurrentUser() user: AuthUser) {
     const pid = requirePro(user);
-    const [rules, blocks, pro] = await Promise.all([
+    const [rules, blocks, periods, pro] = await Promise.all([
       this.availability.getRules(pid),
       this.availability.listBlocks(pid),
+      this.availability.listPeriods(pid),
       this.prisma.professionalProfile.findUniqueOrThrow({
         where: { id: pid },
         select: { acceptingRequests: true, emergencyAvailable: true, serviceRadiusKm: true, timezone: true },
       }),
     ]);
-    return { rules, blocks, settings: pro };
+    return { rules, blocks, periods, settings: pro };
   }
 
   @ApiBearerAuth()
@@ -72,6 +78,18 @@ export class AvailabilityController {
   @Post('me/blocks')
   addBlock(@CurrentUser() user: AuthUser, @Body() dto: BlockDto) {
     return this.availability.addBlock(requirePro(user), new Date(dto.startsAt), new Date(dto.endsAt), dto.reason);
+  }
+
+  @ApiBearerAuth()
+  @Post('me/periods')
+  addPeriod(@CurrentUser() user: AuthUser, @Body() dto: PeriodDto) {
+    return this.availability.addPeriod(requirePro(user), dto.startDate, dto.endDate, dto.note);
+  }
+
+  @ApiBearerAuth()
+  @Delete('me/periods/:id')
+  removePeriod(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.availability.removePeriod(requirePro(user), id);
   }
 
   @ApiBearerAuth()

@@ -39,7 +39,12 @@ export class ProfessionalsService {
     if (user.professional) throw new ConflictException('You already have a professional profile');
     if (dto.accountType === 'COMPANY' && (!dto.businessName || !dto.registrationNumber))
       throw new BadRequestException('Company accounts require a business name and registration number');
+    const other = dto.otherService?.trim();
+    if (!dto.categoryIds.length && !other) throw new BadRequestException('Choose at least one service, or describe yours under "Other"');
     for (const id of dto.categoryIds) await this.categories.getForCountry(id, user.countryCode);
+    const otherCat = other ? await this.prisma.serviceCategory.findUnique({ where: { slug: 'other' } }) : null;
+    const serviceRows = dto.categoryIds.filter((id) => id !== otherCat?.id).map((categoryId) => ({ categoryId, customName: null as string | null }));
+    if (other && otherCat) serviceRows.push({ categoryId: otherCat.id, customName: other });
 
     const pro = await this.prisma.$transaction(async (tx) => {
       let companyId: string | undefined;
@@ -60,7 +65,7 @@ export class ProfessionalsService {
           remoteAvailable: dto.remoteAvailable ?? false, countryCode: user.countryCode,
           timezone: user.country.defaultTimezone, languages: [user.preferredLanguage], companyId,
           services: {
-            create: dto.categoryIds.map((categoryId, i) => ({ categoryId, currency: user.country.currency, isPrimary: i === 0 })),
+            create: serviceRows.map((s, i) => ({ categoryId: s.categoryId, customName: s.customName, currency: user.country.currency, isPrimary: i === 0 })),
           },
         },
       });
@@ -91,8 +96,8 @@ export class ProfessionalsService {
       ...items.map((s, i) =>
         this.prisma.professionalService.upsert({
           where: { professionalId_categoryId: { professionalId: pid, categoryId: s.categoryId } },
-          create: { professionalId: pid, categoryId: s.categoryId, description: s.description, pricingType: s.pricingType, indicativePriceMinor: s.indicativePriceMinor, currency: pro.user.country.currency, isPrimary: i === primaryIdx },
-          update: { description: s.description, pricingType: s.pricingType, indicativePriceMinor: s.indicativePriceMinor ?? null, isPrimary: i === primaryIdx },
+          create: { professionalId: pid, categoryId: s.categoryId, description: s.description, pricingType: s.pricingType, indicativePriceMinor: s.indicativePriceMinor, currency: pro.user.country.currency, isPrimary: i === primaryIdx, customName: s.customName?.trim() || null },
+          update: { description: s.description, pricingType: s.pricingType, indicativePriceMinor: s.indicativePriceMinor ?? null, isPrimary: i === primaryIdx, customName: s.customName?.trim() || null },
         }),
       ),
     ]);
@@ -214,7 +219,7 @@ export class ProfessionalsService {
       ...p,
       displayName: p.businessName ?? p.user.name,
       avatarUrl: this.storage.signedUrl(p.user.avatarKey),
-      services: p.services.map((s) => ({ ...s, categoryName: this.categories.pickName(s.category, locale).name, category: undefined })),
+      services: p.services.map((s) => ({ ...s, categoryName: s.customName ?? this.categories.pickName(s.category, locale).name, category: undefined })),
       portfolio: p.portfolio.map((i) => ({ ...i, url: this.storage.signedUrl(i.fileKey) })),
       verifications: p.verifications.map((v) => ({ id: v.id, type: v.type, status: v.status, categoryId: v.categoryId, documentName: v.documentName, reviewNote: v.reviewNote, createdAt: v.createdAt, reviewedAt: v.reviewedAt })),
       badges: this.badges(p.verifications, locale),
@@ -266,7 +271,7 @@ export class ProfessionalsService {
       avatarUrl: this.storage.signedUrl(p.user.avatarKey),
       company: p.company ? { ...p.company, logoUrl: this.storage.signedUrl(p.company.logoKey) } : null,
       services: p.services.map((s) => ({
-        categoryId: s.categoryId, categorySlug: s.category.slug, categoryName: this.categories.pickName(s.category, locale).name,
+        categoryId: s.categoryId, categorySlug: s.category.slug, categoryName: s.customName ?? this.categories.pickName(s.category, locale).name, isCustom: !!s.customName,
         description: s.description, pricingType: s.pricingType, indicativePriceMinor: s.indicativePriceMinor, currency: s.currency, isPrimary: s.isPrimary,
       })),
       portfolio: p.portfolio.map((i) => ({ id: i.id, title: i.title, description: i.description, url: this.storage.signedUrl(i.fileKey) })),
@@ -318,6 +323,7 @@ export class ProfessionalsService {
               { biography: { contains: q.q, mode: 'insensitive' } },
               { user: { name: { contains: q.q, mode: 'insensitive' } } },
               { services: { some: { category: { translations: { some: { name: { contains: q.q, mode: 'insensitive' } } } } } } },
+              { services: { some: { customName: { contains: q.q, mode: 'insensitive' } } } },
             ],
           }
         : {}),
@@ -379,7 +385,7 @@ export class ProfessionalsService {
       avatarUrl: this.storage.signedUrl(s.p.user.avatarKey),
       city: s.p.city,
       distanceKm: s.distanceKm === null ? null : Math.round(s.distanceKm * 10) / 10,
-      mainService: s.service ? this.categories.pickName(s.service.category, locale).name : null,
+      mainService: s.service ? s.service.customName ?? this.categories.pickName(s.service.category, locale).name : null,
       indicativePriceMinor: s.service?.indicativePriceMinor ?? null,
       pricingType: s.service?.pricingType ?? null,
       currency: s.service?.currency ?? null,

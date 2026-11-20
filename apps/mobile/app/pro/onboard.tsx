@@ -12,12 +12,14 @@ export default function Onboard() {
   const { tree } = useCategories();
   const [f, setF] = useState({ accountType: 'INDIVIDUAL', businessName: '', registrationNumber: '', city: '', lat: 0, lng: 0, serviceRadiusKm: '25' });
   const [cats, setCats] = useState<string[]>([]);
+  const [otherOn, setOtherOn] = useState(false);
+  const [other, setOther] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const submit = async () => {
     setBusy(true); setErr(null);
     try {
-      await api('/professionals/onboard', { body: { accountType: f.accountType, businessName: f.businessName || undefined, registrationNumber: f.registrationNumber || undefined, city: f.city, lat: f.lat, lng: f.lng, serviceRadiusKm: Number(f.serviceRadiusKm) || 25, categoryIds: cats } });
+      await api('/professionals/onboard', { body: { accountType: f.accountType, businessName: f.businessName || undefined, registrationNumber: f.registrationNumber || undefined, city: f.city, lat: f.lat, lng: f.lng, serviceRadiusKm: Number(f.serviceRadiusKm) || 25, categoryIds: cats, otherService: otherOn && other.trim() ? other.trim() : undefined } });
       await reload(); setMode('professional'); router.replace('/(tabs)');
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   };
@@ -32,12 +34,21 @@ export default function Onboard() {
       </Card>
       <Card>
         <Text variant="h2">2. {t('Which services do you offer?')}</Text>
-        {tree.map((p) => (
+        {tree.filter((p) => p.slug !== 'other-services').map((p) => (
           <Row key={p.id} gap={6} style={{ marginBottom: 6 }}>
             <Text variant="small" style={{ width: '100%' }}>{p.icon} {p.name}</Text>
             {p.children.map((c) => <Chip key={c.id} label={`${c.name}${c.requiredVerifications.includes('QUALIFICATION') ? ' 🎓' : ''}`} selected={cats.includes(c.id)} onPress={() => setCats((s) => (s.includes(c.id) ? s.filter((x) => x !== c.id) : [...s, c.id]))} />)}
           </Row>
         ))}
+        <Row gap={6} style={{ marginBottom: 6 }}>
+          <Text variant="small" style={{ width: '100%' }}>✨ {t('Other')}</Text>
+          <Chip label={`＋ ${t('Other — describe your service')}`} selected={otherOn} onPress={() => setOtherOn((x) => !x)} />
+        </Row>
+        {otherOn && (
+          <Field label={t('What exactly do you offer?')} hint={t('e.g. Piano tuning, Pool maintenance, Drone filming')} required>
+            <Input value={other} onChangeText={setOther} maxLength={80} autoFocus accessibilityLabel={t('What exactly do you offer?')} />
+          </Field>
+        )}
         <Text variant="small">🎓 {t('Regulated service: you receive requests after your qualification is verified.')}</Text>
       </Card>
       <Card>
@@ -46,7 +57,8 @@ export default function Onboard() {
         <Field label={t('Travel radius: {n} km', { n: f.serviceRadiusKm })}><Input value={f.serviceRadiusKm} onChangeText={(serviceRadiusKm) => setF({ ...f, serviceRadiusKm })} keyboardType="number-pad" /></Field>
       </Card>
       {err && <Alert>{err}</Alert>}
-      <Button title={t('Create professional profile')} onPress={submit} loading={busy} disabled={!cats.length || !f.lat} />
+      <Button title={t('Create professional profile')} onPress={submit} loading={busy} disabled={(!cats.length && !(otherOn && other.trim().length >= 3)) || !f.lat || (otherOn && other.trim().length > 0 && other.trim().length < 3)} />
+      <Button title={`‹ ${t('Back')}`} variant="ghost" onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))} />
     </Screen>
   );
 }

@@ -10,7 +10,8 @@ import { useT } from '@/lib/i18n';
 import { CITIES } from '@unret/shared';
 
 export type DayStatus = 'free' | 'partial' | 'booked' | 'closed' | 'past';
-interface Day { date: string; weekday: number; status: DayStatus; freeMinutes: number; freeSlots: string[] }
+interface Day { date: string; weekday: number; status: DayStatus; outsidePeriods?: boolean; freeMinutes: number; freeSlots: string[] }
+interface Period { start: string; end: string; note: string | null }
 
 const pad = (n: number) => String(n).padStart(2, '0');
 const ymd = (y: number, m: number, d: number) => `${y}-${pad(m)}-${pad(d)}`;
@@ -31,13 +32,14 @@ export function AvailabilityCalendar({ professionalId, professionalName, service
   const [end, setEnd] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  const [periods, setPeriods] = useState<Period[]>([]);
 
   useEffect(() => {
     const key = ymd(cursor.y, cursor.m, 1);
     if (days[key]) return;
     setLoading(true);
-    api<{ days: Day[] }>(`/availability/${professionalId}/calendar`, { query: { from: key, days: daysIn(cursor.y, cursor.m) } })
-      .then((r) => setDays((d) => ({ ...d, ...Object.fromEntries(r.days.map((x) => [x.date, x])) })))
+    api<{ days: Day[]; periods?: Period[] }>(`/availability/${professionalId}/calendar`, { query: { from: key, days: daysIn(cursor.y, cursor.m) } })
+      .then((r) => { setDays((d) => ({ ...d, ...Object.fromEntries(r.days.map((x) => [x.date, x])) })); if (r.periods) setPeriods(r.periods); })
       .catch(() => undefined)
       .finally(() => setLoading(false));
   }, [cursor, professionalId]);
@@ -59,7 +61,10 @@ export function AvailabilityCalendar({ professionalId, professionalName, service
     setEnd(date);
   };
   const last = end ?? start;
-  const workDays = start && last ? Object.values(days).filter((d) => d.date >= start && d.date <= last && selectable(d)).length : 0;
+  const inRangeDays = start && last ? Object.values(days).filter((d) => d.date >= start && d.date <= last) : [];
+  const workDays = inRangeDays.filter((d) => selectable(d)).length;
+  const workingInRange = inRangeDays.filter((d) => d.status !== 'closed' && d.status !== 'past').length;
+  const mostlyBooked = workDays * 2 < workingInRange;
   const fmt = (s: string) => new Date(s + 'T12:00:00Z').toLocaleDateString(intl, { day: 'numeric', month: 'short', timeZone: 'UTC' });
 
   const colors: Record<DayStatus, { bg: string; fg: string }> = {
@@ -72,6 +77,12 @@ export function AvailabilityCalendar({ professionalId, professionalName, service
 
   return (
     <View style={{ gap: 10 }}>
+      {periods.length > 0 && (
+        <View style={{ backgroundColor: th.sunSoft, borderRadius: 10, padding: 10, gap: 2 }}>
+          <Text variant="label">✦ {t('Open for bookings')}</Text>
+          {periods.map((p) => <Text key={p.start} variant="small">{fmt(p.start)} → {fmt(p.end)}{p.note ? ` · ${p.note}` : ''}</Text>)}
+        </View>
+      )}
       <Row style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
         <Pressable onPress={() => monthIndex > 0 && setCursor(({ y, m }) => (m === 1 ? { y: y - 1, m: 12 } : { y, m: m - 1 }))} disabled={monthIndex <= 0} accessibilityRole="button" accessibilityLabel={t('Previous month')} hitSlop={10} style={{ opacity: monthIndex <= 0 ? 0.3 : 1, padding: 6 }}>
           <Text variant="h2">‹</Text>
@@ -92,7 +103,7 @@ export function AvailabilityCalendar({ professionalId, professionalName, service
               const inRange = !!start && date >= start && date <= (end ?? start);
               const edge = date === start || date === end;
               const c = colors[status];
-              const label = `${fmt(date)}: ${t({ free: 'Available', partial: 'Partly booked', booked: 'Fully booked', closed: 'Not working', past: 'Past' }[status])}`;
+              const label = `${fmt(date)}: ${d?.outsidePeriods ? t('Not taking bookings') : t({ free: 'Available', partial: 'Partly booked', booked: 'Fully booked', closed: 'Not working', past: 'Past' }[status])}`;
               return (
                 <Pressable key={date} onPress={() => tap(date)} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: inRange, disabled: !selectable(d) }}
                   style={{ flex: 1, aspectRatio: 1, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: edge ? th.brand : inRange ? th.brand + '33' : c.bg }}>
@@ -117,8 +128,9 @@ export function AvailabilityCalendar({ professionalId, professionalName, service
           <Text variant="label">{end && end !== start ? `${fmt(start)} → ${fmt(end)}` : fmt(start)} · {t('{n} working days available', { n: workDays })}</Text>
           {!end && <Text variant="small">{t('Tap another day to choose an end date, or continue with one day.')}</Text>}
           {days[start]?.freeSlots.length ? <Text variant="small">{t('Free on {date}: {slots}', { date: fmt(start), slots: days[start].freeSlots.join(', ') })}</Text> : null}
+          {mostlyBooked && <Text variant="small" color={th.danger}>{t('Most of this period is already booked. Please choose other dates.')}</Text>}
           <Row style={{ flexWrap: 'nowrap' }}>
-            <Button title={t('Request these dates')} variant="sun" onPress={() => setOpen(true)} style={{ flex: 1 }} />
+            <Button title={t('Request these dates')} variant="sun" onPress={() => setOpen(true)} disabled={mostlyBooked} style={{ flex: 1 }} />
             <Button title={t('Clear')} variant="ghost" onPress={() => { setStart(null); setEnd(null); }} />
           </Row>
         </View>
@@ -166,6 +178,7 @@ function RequestPeriodSheet({ open, onClose, professionalId, professionalName, s
       <Field label={t('Address')} hint={t('Only shared with the professional you hire.')}><Input value={f.addressText} onChangeText={(addressText) => setF({ ...f, addressText })} /></Field>
       {err && <Alert>{err}</Alert>}
       <Button title={t('Send request')} variant="sun" onPress={send} loading={busy} disabled={!f.categoryId || f.title.trim().length < 5 || f.description.trim().length < 20} />
+      <Button title={`‹ ${t('Back to calendar')}`} variant="ghost" onPress={onClose} />
     </Sheet>
   );
 }

@@ -130,6 +130,7 @@ function NewRequest() {
 
         {err && <Alert>{err}</Alert>}
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button type="button" variant="ghost" onClick={() => router.back()} className="sm:mr-auto">‹ {t('Back')}</Button>
           <Button type="button" variant="outline" loading={busy === 'draft'} disabled={!f.categoryId || !f.title} onClick={() => submit(false)}>{t('Save as draft')}</Button>
           <Button type="submit" size="lg" loading={busy === 'publish'}>{t('Publish request')}</Button>
         </div>
