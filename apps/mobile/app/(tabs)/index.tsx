@@ -15,6 +15,26 @@ export default function Home() {
   return mode === 'professional' ? <ProHome /> : <CustomerHome />;
 }
 
+function ModeSwitch() {
+  const { me, mode, setMode } = useAuth();
+  const { t } = useT();
+  const th = useTheme();
+  if (!me?.professional) return null;
+  return (
+    <View accessibilityRole="radiogroup" accessibilityLabel={t('Mode')} style={{ flexDirection: 'row', alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.14)', borderRadius: 999, padding: 3, borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' }}>
+      {(['customer', 'professional'] as const).map((m) => {
+        const on = mode === m;
+        return (
+          <Pressable key={m} onPress={() => setMode(m)} accessibilityRole="radio" accessibilityState={{ selected: on }}
+            style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: on ? th.sun : 'transparent' }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: on ? th.onSun : hero.text }}>{m === 'customer' ? t('Customer') : t('Professional')}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 function Header({ subtitle, children }: { subtitle: string; children?: React.ReactNode }) {
   const { me } = useAuth();
   const { t } = useT();
@@ -32,6 +52,7 @@ function Header({ subtitle, children }: { subtitle: string; children?: React.Rea
         ))}
       </View>
       <View style={{ padding: 16, paddingBottom: 20, gap: 6 }}>
+        <ModeSwitch />
         <Row style={{ justifyContent: 'space-between' }}>
           <Text variant="title" color={hero.text}>{t('Hi, {name}', { name: me?.name.split(' ')[0] ?? '' })}</Text>
           <Pressable onPress={() => router.push('/notifications')} accessibilityRole="button" accessibilityLabel={t('Notifications')} hitSlop={10} style={{ marginRight: 46 }}><Text style={{ fontSize: 22, color: hero.text }}>🔔</Text></Pressable>

@@ -12,7 +12,8 @@ function Login() {
   const { t } = useT();
   const { login } = useAuth();
   const router = useRouter();
-  const next = useSearchParams().get('next') || '/dashboard';
+  const nextParam = useSearchParams().get('next');
+  const next = nextParam || '/dashboard';
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [mfaCode, setMfaCode] = useState('');
@@ -27,7 +28,7 @@ function Login() {
     try {
       const r = await login(identifier, password, mfa ? mfaCode : undefined);
       if (r.mfaRequired) setMfa(true);
-      else router.push(next.startsWith('/') ? next : '/dashboard');
+      else router.push(nextParam?.startsWith('/') ? nextParam : r.professional ? '/pro' : '/dashboard');
     } catch (x) {
       setErr((x as Error).message);
     } finally {

@@ -19,4 +19,5 @@ export const mobileRo: Record<string, string> = {
   'Proposed appointment': 'Programare propusă',
   'Sign in to continue': 'Autentifică-te pentru a continua',
   'Duration (hours)': 'Durată (ore)',
+  'Professional': 'Profesionist',
 };

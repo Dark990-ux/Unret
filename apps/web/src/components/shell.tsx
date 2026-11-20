@@ -83,6 +83,16 @@ export function SiteHeader() {
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-1">
+          {isPro && (
+            <div role="radiogroup" aria-label={t('Mode')} className="mr-1 hidden items-center rounded-full border border-surface-line bg-surface-sunk p-0.5 text-xs font-semibold sm:flex dark:border-white/10 dark:bg-white/5">
+              {(['customer', 'professional'] as const).map((m) => (
+                <button key={m} role="radio" aria-checked={mode === m} onClick={() => { if (mode !== m) { setMode(m); router.push(m === 'professional' ? '/pro' : '/dashboard'); } }}
+                  className={cx('rounded-full px-3 py-1.5', mode === m ? 'bg-accent-500 text-accent-ink' : 'text-ink-soft hover:text-ink dark:text-white/70')}>
+                  {m === 'customer' ? t('Customer') : t('Professional')}
+                </button>
+              ))}
+            </div>
+          )}
           {me && !proMode && <Button size="sm" href="/requests/new" className="hidden sm:inline-flex"><Plus className="h-4 w-4" />{t('Post a request')}</Button>}
           {me ? (
             <>

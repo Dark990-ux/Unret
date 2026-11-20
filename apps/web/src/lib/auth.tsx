@@ -23,7 +23,7 @@ interface AuthCtx {
   me: Me | null;
   loading: boolean;
   reload: () => Promise<void>;
-  login: (identifier: string, password: string, mfaCode?: string) => Promise<{ mfaRequired?: boolean }>;
+  login: (identifier: string, password: string, mfaCode?: string) => Promise<{ mfaRequired?: boolean; professional?: boolean }>;
   logout: () => Promise<void>;
   mode: 'customer' | 'professional';
   setMode: (m: 'customer' | 'professional') => void;
@@ -34,7 +34,7 @@ const Ctx = createContext<AuthCtx | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [me, setMe] = useState<Me | null>(null);
   const [loading, setLoading] = useState(true);
-  const [mode, setModeState] = useState<'customer' | 'professional'>('customer');
+  const [savedMode, setModeState] = useState<'customer' | 'professional' | null>(null);
 
   const reload = useCallback(async () => {
     if (!getAccessToken()) {
@@ -68,13 +68,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const res = await api<{ accessToken?: string; refreshToken?: string; mfaRequired?: boolean }>('/auth/login', { body: { identifier, password, mfaCode } });
     if (res.mfaRequired) return { mfaRequired: true };
     saveSession({ accessToken: res.accessToken!, refreshToken: res.refreshToken! });
-    await reload();
-    return {};
+    clearMode();
+    const u = await api<Me>('/auth/me');
+    setMe(u);
+    return { professional: !!u.professional };
   };
 
   const logout = async () => {
     await apiLogout();
     setMe(null);
+    clearMode();
+  };
+
+  // A new sign-in starts from the account's default view (professional for professionals).
+  const clearMode = () => {
+    setModeState(null);
+    try {
+      localStorage.removeItem('unret.mode');
+    } catch {
+      /* ignore */
+    }
   };
 
   const setMode = (m: 'customer' | 'professional') => {
@@ -86,7 +99,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  return <Ctx.Provider value={{ me, loading, reload, login, logout, mode, setMode }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ me, loading, reload, login, logout, mode: me?.professional ? savedMode ?? 'professional' : 'customer', setMode }}>{children}</Ctx.Provider>;
 }
 
 export function useAuth() {

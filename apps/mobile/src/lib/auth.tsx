@@ -21,7 +21,7 @@ const C = createContext<AuthCtx | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [me, setMe] = useState<Me | null>(null);
   const [loading, setLoading] = useState(true);
-  const [mode, setModeState] = useState<Mode>('customer');
+  const [savedMode, setModeState] = useState<Mode | null>(null);
 
   const reload = useCallback(async () => {
     const s = await loadSession();
@@ -41,14 +41,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (identifier: string, password: string, mfaCode?: string) => {
     const r = await api('/auth/login', { body: { identifier, password, mfaCode } });
     if (r.mfaRequired) return { mfaRequired: true };
+    setModeState(null); await secureStorage.set('unret.mode', null);
     await saveSession(r);
     return {};
   };
   const register = async (body: Record<string, unknown>) => { await saveSession(await api('/auth/register', { body })); };
-  const logout = async () => { await apiLogout(); setMe(null); };
+  const logout = async () => { await apiLogout(); setMe(null); setModeState(null); await secureStorage.set('unret.mode', null); };
   const setMode = (m: Mode) => { setModeState(m); secureStorage.set('unret.mode', m); };
 
-  return <C.Provider value={{ me, loading, reload, login, register, logout, mode: me?.professional ? mode : 'customer', setMode }}>{children}</C.Provider>;
+  return <C.Provider value={{ me, loading, reload, login, register, logout, mode: me?.professional ? savedMode ?? 'professional' : 'customer', setMode }}>{children}</C.Provider>;
 }
 
 export function useAuth() {
