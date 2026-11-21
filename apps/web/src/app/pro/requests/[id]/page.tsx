@@ -22,6 +22,7 @@ function ProRequest() {
   const { data: r, loading, reload } = useApi<any>(`/requests/${id}`);
   const [editing, setEditing] = useState(false);
 
+  const [chatErr, setChatErr] = useState<string | null>(null);
   if (loading) return <PageLoader />;
   if (!r) return <Empty title={t('Request not found')} />;
   const offer = r.myOffer;
@@ -30,8 +31,11 @@ function ProRequest() {
   const canEdit = offer && ['PENDING', 'MODIFICATION_REQUESTED'].includes(offer.status) && open;
 
   const ask = async () => {
-    const c = await api('/conversations', { body: { requestId: id } });
-    router.push(`/messages/${c.id}`);
+    setChatErr(null);
+    try {
+      const c = await api('/conversations', { body: { requestId: id } });
+      router.push(`/messages/${c.id}`);
+    } catch (e) { setChatErr((e as Error).message); }
   };
 
   return (
@@ -40,6 +44,7 @@ function ProRequest() {
         subtitle={<span className="flex flex-wrap items-center gap-2"><StatusBadge status={r.status} />{r.categoryName}{r.directTo && <Badge tone="amber">✦ {t('Sent directly to you from your calendar')}</Badge>}</span>}
         actions={<>
           <Button variant="outline" onClick={ask}><MessageSquare className="h-4 w-4" />{t('Ask the customer')}</Button>
+          {chatErr && <div className="w-full"><Alert>{chatErr}</Alert></div>}
           {!offer && open && !r.match?.declined && <Button variant="ghost" onClick={async () => { await api(`/requests/${id}/decline`, { method: 'POST' }); router.push('/pro/requests'); }}><ThumbsDown className="h-4 w-4" />{t('Not interested')}</Button>}
           {r.job && <Button href={`/jobs/${r.job.id}`}>{t('Go to job')}</Button>}
         </>} />

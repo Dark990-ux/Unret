@@ -6,7 +6,7 @@ import { Loader } from '@/components/ui';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
-import { useRealtime } from '@/lib/realtime';
+import { useRealtime, useSignal } from '@/lib/realtime';
 
 const icon = (glyph: string) => ({ color }: { color: string }) => <Text style={{ fontSize: 20, color }}>{glyph}</Text>;
 
@@ -15,9 +15,10 @@ export default function TabsLayout() {
   const th = useTheme();
   const { t } = useT();
   const [unread, setUnread] = useState(0);
-  useEffect(() => {
-    if (me) api<any[]>('/conversations').then((r) => setUnread(r.reduce((s, c) => s + c.unread, 0))).catch(() => undefined);
-  }, [me?.id]);
+  const loadUnread = () => { if (me) api<any[]>('/conversations').then((r) => setUnread(r.reduce((s, c) => s + c.unread, 0))).catch(() => undefined); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(loadUnread, [me?.id]);
+  useSignal('unread', loadUnread);
   useRealtime<{ mine: boolean }>('message', (m) => !m.mine && setUnread((x) => x + 1), !!me);
 
   if (loading) return <Loader />;

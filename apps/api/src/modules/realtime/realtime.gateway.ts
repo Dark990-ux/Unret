@@ -1,7 +1,8 @@
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { OnGatewayConnection, WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
+import { ConnectedSocket, MessageBody, OnGatewayConnection, SubscribeMessage, WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
+import { PrismaService } from '../../common/prisma.service';
 import { Server, Socket } from 'socket.io';
 
 /**
@@ -14,7 +15,7 @@ export class RealtimeGateway implements OnGatewayConnection {
   private logger = new Logger(RealtimeGateway.name);
   @WebSocketServer() server: Server;
 
-  constructor(private jwt: JwtService, private config: ConfigService) {}
+  constructor(private jwt: JwtService, private config: ConfigService, private prisma: PrismaService) {}
 
   async handleConnection(socket: Socket) {
     try {
@@ -26,6 +27,17 @@ export class RealtimeGateway implements OnGatewayConnection {
       this.logger.debug('Rejected unauthenticated socket');
       socket.disconnect(true);
     }
+  }
+
+  /** "X is typing…": relayed to the other participant of the conversation only. */
+  @SubscribeMessage('typing')
+  async typing(@ConnectedSocket() socket: Socket, @MessageBody() body: { conversationId?: string; typing?: boolean }) {
+    const userId = socket.data.userId as string | undefined;
+    if (!userId || typeof body?.conversationId !== 'string') return;
+    const c = await this.prisma.conversation.findUnique({ where: { id: body.conversationId }, select: { customerId: true, professional: { select: { userId: true } } } }).catch(() => null);
+    if (!c) return;
+    const other = c.customerId === userId ? c.professional.userId : c.professional.userId === userId ? c.customerId : null;
+    if (other) this.emitToUser(other, 'typing', { conversationId: body.conversationId, typing: body.typing !== false });
   }
 
   emitToUser(userId: string, event: string, payload: unknown) {

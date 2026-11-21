@@ -1,16 +1,23 @@
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useEffect } from 'react';
 import { View } from 'react-native';
 import { Avatar, Badge, Card, Empty, Loader, Row, Screen, Text } from '@/components/ui';
 import { absUrl } from '@/lib/api';
 import { timeAgo } from '@/lib/format';
 import { useApi } from '@/lib/hooks';
 import { useT } from '@/lib/i18n';
+import { useAuth } from '@/lib/auth';
 import { useRealtime } from '@/lib/realtime';
 
 export default function Messages() {
   const { t, intl } = useT();
   const { data, loading, reload, refresh, refreshing } = useApi<any[]>('/conversations');
+  const { me } = useAuth();
   useRealtime('message', () => reload());
+  // Fresh unread counts when coming back from a chat, and the right list after switching accounts.
+  useFocusEffect(useCallback(() => { reload(); }, [reload]));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { reload(); }, [me?.id]);
   return (
     <Screen onRefresh={refresh} refreshing={refreshing}>
       {loading ? <Loader /> : !data?.length ? <Empty title={t('No conversations yet')} text={t('Conversations with professionals and customers appear here.')} /> : data.map((c) => (

@@ -30,6 +30,11 @@ export class ConversationsController {
     return this.conversations.start(user, dto);
   }
 
+  @Post(':id/read')
+  read(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.conversations.read(id, user);
+  }
+
   @Get(':id/messages')
   messages(@CurrentUser() user: AuthUser, @Param('id') id: string, @Query('before') before?: string) {
     return this.conversations.messages(id, user, before);

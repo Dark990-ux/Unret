@@ -8,6 +8,7 @@ import { Alert, Badge, Button, Card, Empty, Field, Input, KV, Loader, Row, Scree
 import { absUrl, api } from '@/lib/api';
 import { date, dateTime, majorToMinor, money, period } from '@/lib/format';
 import { useApi } from '@/lib/hooks';
+import { openChat } from '@/lib/chat';
 import { useT } from '@/lib/i18n';
 
 export default function ProRequest() {
@@ -20,7 +21,7 @@ export default function ProRequest() {
   const offer = r.myOffer; const latest = offer?.revisions?.[0];
   const open = ['PUBLISHED', 'OFFERS_RECEIVED'].includes(r.status);
   const canEdit = offer && ['PENDING', 'MODIFICATION_REQUESTED'].includes(offer.status) && open;
-  const ask = async () => { const c = await api('/conversations', { body: { requestId: id } }); router.push(`/messages/${c.id}`); };
+  const ask = () => openChat({ requestId: id });
 
   return (
     <Screen onRefresh={refresh} refreshing={refreshing}>

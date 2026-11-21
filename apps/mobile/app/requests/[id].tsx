@@ -7,6 +7,7 @@ import { Alert, Avatar, Badge, Button, Card, Divider, Empty, Field, Input, KV, L
 import { absUrl, api } from '@/lib/api';
 import { date, dateTime, money, period } from '@/lib/format';
 import { useApi } from '@/lib/hooks';
+import { openChat } from '@/lib/chat';
 import { useT } from '@/lib/i18n';
 import { useRealtime } from '@/lib/realtime';
 
@@ -75,7 +76,7 @@ export default function RequestDetail() {
                 {o.status === 'PENDING' && !o.expired && open && <Button title={t('Accept offer')} onPress={() => setAccepting(o)} />}
                 <Row style={{ flexWrap: 'nowrap' }}>
                   {o.status === 'PENDING' && !o.expired && open && <Button small variant="outline" title={t('Request changes')} onPress={() => setModifying(o)} style={{ flex: 1 }} />}
-                  <Button small variant="outline" title={t('Ask a question')} style={{ flex: 1 }} onPress={async () => { const c = await api('/conversations', { body: { professionalId: p.id, requestId: id } }); router.push(`/messages/${c.id}`); }} />
+                  <Button small variant="outline" title={t('Ask a question')} style={{ flex: 1 }} onPress={() => openChat({ professionalId: p.id, requestId: id })} />
                 </Row>
                 {['PENDING', 'MODIFICATION_REQUESTED'].includes(o.status) && open && <Button small variant="ghost" title={t('Decline')} onPress={() => confirm(t('Decline this offer?'), () => run(() => api(`/offers/${o.id}/reject`, { body: {} })))} />}
               </Card>

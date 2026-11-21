@@ -7,6 +7,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 
 type Tx = Prisma.TransactionClient | PrismaService;
+const PAGE = 50;
 
 @Injectable()
 export class ConversationsService {
@@ -99,14 +100,16 @@ export class ConversationsService {
   }
 
   async messages(conversationId: string, user: AuthUser, before?: string) {
-    const { c, isCustomer } = await this.assertParticipant(conversationId, user);
+    const { c, isCustomer, otherUserId } = await this.assertParticipant(conversationId, user);
     const items = await this.prisma.message.findMany({
       where: { conversationId, ...(before ? { createdAt: { lt: new Date(before) } } : {}) },
       orderBy: { createdAt: 'desc' },
-      take: 50,
+      take: PAGE + 1,
       include: { sender: { select: { id: true, name: true } } },
     });
-    await this.markRead(conversationId, isCustomer);
+    const hasMore = items.length > PAGE;
+    if (hasMore) items.pop();
+    if (!before) await this.markRead(conversationId, isCustomer, otherUserId);
     const full = await this.prisma.conversation.findUniqueOrThrow({
       where: { id: c.id },
       include: {
@@ -118,6 +121,9 @@ export class ConversationsService {
     });
     return {
       conversation: full,
+      hasMore,
+      /** Messages I sent up to this moment have been seen by the other person. */
+      otherLastReadAt: isCustomer ? full.professionalLastReadAt : full.customerLastReadAt,
       messages: items.reverse().map((m) => ({ ...m, attachmentUrl: this.storage.signedUrl(m.attachmentKey), mine: m.senderId === user.id })),
     };
   }
@@ -161,10 +167,17 @@ export class ConversationsService {
     return msg;
   }
 
-  private markRead(conversationId: string, isCustomer: boolean) {
-    return this.prisma.conversation.update({
-      where: { id: conversationId },
-      data: isCustomer ? { customerLastReadAt: new Date() } : { professionalLastReadAt: new Date() },
-    });
+  /** Marks the conversation read for this user and tells the other person ("Seen"). */
+  async read(conversationId: string, user: AuthUser) {
+    const { isCustomer, otherUserId } = await this.assertParticipant(conversationId, user);
+    const readAt = await this.markRead(conversationId, isCustomer, otherUserId);
+    return { conversationId, readAt };
+  }
+
+  private async markRead(conversationId: string, isCustomer: boolean, otherUserId: string) {
+    const readAt = new Date();
+    await this.prisma.conversation.update({ where: { id: conversationId }, data: isCustomer ? { customerLastReadAt: readAt } : { professionalLastReadAt: readAt } });
+    this.realtime.emitToUser(otherUserId, 'read', { conversationId, readAt });
+    return readAt;
   }
 }

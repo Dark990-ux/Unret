@@ -37,6 +37,7 @@ function RequestDetail() {
   useEffect(() => { if (req.data?.viewer === 'professional') router.replace(`/pro/requests/${id}`); }, [req.data, id, router]);
   useRealtime('notification', (n: any) => { if (n.data?.requestId === id) { offers.reload(); req.reload(); } });
 
+  const [chatErr, setChatErr] = useState<string | null>(null);
   if (req.loading) return <PageLoader />;
   if (!req.data) return <Container><Empty title={t('Request not found')} /></Container>;
   const r = req.data;
@@ -44,8 +45,11 @@ function RequestDetail() {
   const open = ['PUBLISHED', 'OFFERS_RECEIVED'].includes(r.status);
 
   const message_pro = async (professionalId: string) => {
-    const c = await api('/conversations', { body: { professionalId, requestId: id } });
-    router.push(`/messages/${c.id}`);
+    setChatErr(null);
+    try {
+      const c = await api('/conversations', { body: { professionalId, requestId: id } });
+      router.push(`/messages/${c.id}`);
+    } catch (e) { setChatErr((e as Error).message); }
   };
 
   return (
@@ -106,6 +110,7 @@ function RequestDetail() {
                     {o.status === 'PENDING' && !o.expired && open && <Button onClick={() => setAccepting(o)}><Check className="h-4 w-4" />{t('Accept offer')}</Button>}
                     {o.status === 'PENDING' && !o.expired && open && <Button variant="outline" onClick={() => setModifying(o)}>{t('Request changes')}</Button>}
                     <Button variant="outline" onClick={() => message_pro(p.id)}><MessageSquare className="h-4 w-4" />{t('Ask a question')}</Button>
+                    {chatErr && <div className="w-full"><Alert>{chatErr}</Alert></div>}
                     {o.revisions.length > 1 && <Button variant="ghost" onClick={() => setHistory(o)}><History className="h-4 w-4" />{t('History')}</Button>}
                     {['PENDING', 'MODIFICATION_REQUESTED'].includes(o.status) && open && <Button variant="ghost" className="sm:ml-auto" onClick={() => confirm(t('Decline this offer?')) && act.run(() => api(`/offers/${o.id}/reject`, { body: {} }))}>{t('Decline')}</Button>}
                   </div>

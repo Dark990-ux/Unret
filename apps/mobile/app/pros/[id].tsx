@@ -6,6 +6,7 @@ import { Avatar, Badge, Button, Card, Empty, Loader, Row, Screen, Section, Stars
 import { absUrl, api } from '@/lib/api';
 import { date } from '@/lib/format';
 import { useApi } from '@/lib/hooks';
+import { openChat } from '@/lib/chat';
 import { useT } from '@/lib/i18n';
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -17,7 +18,7 @@ export default function ProProfile() {
   if (loading) return <Loader />;
   if (!p) return <Screen><Empty title={error ?? t('Professional not found')} /></Screen>;
   const primary = p.services.find((s: any) => s.isPrimary) ?? p.services[0];
-  const message = async () => { const c = await api('/conversations', { body: { professionalId: id } }); router.push(`/messages/${c.id}`); };
+  const message = () => openChat({ professionalId: id });
   const toggleSave = async () => { await api(`/users/me/saved/${id}`, { method: p.saved ? 'DELETE' : 'POST' }); setData({ ...p, saved: !p.saved }); };
   return (
     <Screen>

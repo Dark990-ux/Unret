@@ -998,4 +998,10 @@ export const ro: Record<string, string> = {
   "Payouts are active": "Încasările sunt active",
   "Add an email address to your account first": "Adaugă mai întâi o adresă de email în cont",
   "Set up payouts first": "Configurează mai întâi încasările",
+  "Today": "Azi",
+  "Yesterday": "Ieri",
+  "Seen": "Văzut",
+  "Load earlier messages": "Încarcă mesajele mai vechi",
+  "Say hello to {name}. Messages are private between the two of you.": "Salută-l pe {name}. Mesajele sunt private între voi doi.",
+  "{name} is typing…": "{name} scrie…",
 };

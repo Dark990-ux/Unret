@@ -6,7 +6,7 @@ import { Clock, Flag, Heart, Languages, MapPin, MessageSquare, Briefcase, Wifi, 
 import { AvailabilityCalendar } from '@/components/calendar';
 import { PriceHint, Rating, VerificationBadges, WEEKDAYS, Badges } from '@/components/domain';
 import { ReportButton } from '@/components/report';
-import { Avatar, Badge, Button, Card, Container, Empty, PageLoader, Stars } from '@/components/ui-exports';
+import { Alert, Avatar, Badge, Button, Card, Container, Empty, PageLoader, Stars } from '@/components/ui-exports';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { date, responseTime } from '@/lib/format';
@@ -34,15 +34,19 @@ export default function ProfilePage() {
   const { data: p, loading, error, setData } = useApi<Profile>(`/professionals/${id}`, { locale });
   const [busy, setBusy] = useState(false);
 
+  const [chatErr, setChatErr] = useState<string | null>(null);
   if (loading) return <PageLoader />;
   if (error || !p) return <Container><Empty title={t('Professional not found')} /></Container>;
 
   const contact = async () => {
+    setChatErr(null);
     if (!me) return router.push(`/login?next=/pros/${id}`);
     setBusy(true);
     try {
       const c = await api('/conversations', { body: { professionalId: id } });
       router.push(`/messages/${c.id}`);
+    } catch (e) {
+      setChatErr((e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -176,6 +180,7 @@ export default function ProfilePage() {
             <Button className="w-full" href={me ? `/requests/new?category=${primary?.categoryId ?? ''}&pro=${p.id}` : `/register?next=/requests/new`}>{t('Request a quote')}</Button>
             <div className="grid grid-cols-2 gap-2">
               <Button variant="outline" onClick={contact} loading={busy}><MessageSquare className="h-4 w-4" />{t('Message')}</Button>
+              {chatErr && <div className="w-full"><Alert>{chatErr}</Alert></div>}
               <Button variant="outline" onClick={toggleSave} aria-pressed={p.saved}><Heart className={p.saved ? 'h-4 w-4 fill-red-500 text-red-500' : 'h-4 w-4'} />{p.saved ? t('Saved') : t('Save')}</Button>
             </div>
             <dl className="space-y-2 border-t border-surface-line pt-4 text-sm dark:border-white/10">
