@@ -37,7 +37,7 @@ export default function PayoutAccountScreen() {
             {acc.heldMinor > 0 && <Alert tone="blue">{t('{amount} is held by UNRET and will be sent to this account when the work starts or is completed.', { amount: money(acc.heldMinor, 'RON', intl) })}</Alert>}
             <Row style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
               <Text style={{ flex: 1 }}>{t('Show my IBAN to customers who pay by bank transfer')}</Text>
-              <Switch value={acc.showToCustomers} disabled={busy} onValueChange={(v) => put({ holderName: acc.holderName, showToCustomers: v })} trackColor={{ true: th.brand }} thumbColor="#fff" accessibilityLabel={t('Show my IBAN to customers who pay by bank transfer')} />
+              <Switch value={acc.showToCustomers} disabled={busy} onValueChange={(v) => put({ holderName: acc.holderName, showToCustomers: v })} trackColor={{ true: th.brand }} thumbColor="#fff" {...({ activeThumbColor: '#fff' } as object)} accessibilityLabel={t('Show my IBAN to customers who pay by bank transfer')} />
             </Row>
             <Button title={t('Change account')} variant="outline" onPress={() => { setF({ holderName: acc.holderName, iban: '', showToCustomers: acc.showToCustomers }); setEditing(true); }} />
             <Button title={t('Remove')} variant="ghost" small onPress={async () => { await api('/payments/payout-account', { method: 'DELETE' }); q.setData(null); }} />
@@ -52,7 +52,7 @@ export default function PayoutAccountScreen() {
             </Field>
             <Row style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
               <Text style={{ flex: 1 }}>{t('Show my IBAN to customers who pay by bank transfer')}</Text>
-              <Switch value={f.showToCustomers} onValueChange={(showToCustomers) => setF({ ...f, showToCustomers })} trackColor={{ true: th.brand }} thumbColor="#fff" />
+              <Switch value={f.showToCustomers} onValueChange={(showToCustomers) => setF({ ...f, showToCustomers })} trackColor={{ true: th.brand }} thumbColor="#fff" {...({ activeThumbColor: '#fff' } as object)} />
             </Row>
             <Text variant="small">🔒 {t('Your IBAN is stored encrypted. Only the last 4 digits are shown here.')}</Text>
             {err && <Alert>{err}</Alert>}

@@ -45,7 +45,7 @@ export default function Account() {
         <Card>
           <Row style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
             <View style={{ flex: 1 }}><Text variant="label">{t('Accepting new requests')}</Text><Text variant="small">{t('Turn off to temporarily pause new requests (holidays, fully booked).')}</Text></View>
-            <Switch value={avail.data.settings.acceptingRequests} onValueChange={toggleAccepting} trackColor={{ true: th.brand }} accessibilityLabel={t('Accepting new requests')} />
+            <Switch value={avail.data.settings.acceptingRequests} onValueChange={toggleAccepting} trackColor={{ true: th.brand }} accessibilityLabel={t('Accepting new requests')} thumbColor="#fff" {...({ activeThumbColor: '#fff' } as object)} />
           </Row>
           <Divider />
           <Button title={t('Calendar & availability')} variant="outline" onPress={() => router.push('/pro/availability')} />
