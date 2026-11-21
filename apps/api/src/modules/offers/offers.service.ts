@@ -159,7 +159,7 @@ export class OffersService {
         data: {
           requestId: offer.requestId, offerId, acceptedRevisionId: rev.id, customerId: user.id, professionalId: offer.professionalId,
           companyId: offer.professional.companyId, agreedPriceMinor: rev.priceMinor, currency: rev.currency, priceType: rev.priceType,
-          scope: rev.description, paymentMethod: dto.paymentMethod ?? 'DIRECT',
+          scope: rev.description, paymentMethod: dto.paymentMethod ?? offer.request.paymentMethod ?? 'TRANSFER',
           status: scheduled ? 'SCHEDULED' : 'ACCEPTED',
           scheduledStartAt: rev.proposedStartAt, scheduledEndAt: rev.proposedEndAt,
         },

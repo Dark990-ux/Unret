@@ -46,7 +46,7 @@ export const VerificationStatus = {
 } as const;
 export type VerificationStatus = (typeof VerificationStatus)[keyof typeof VerificationStatus];
 
-export const PaymentMethod = { DIRECT: 'DIRECT', PLATFORM: 'PLATFORM' } as const;
+export const PaymentMethod = { DIRECT: 'DIRECT', TRANSFER: 'TRANSFER', CASH: 'CASH', PLATFORM: 'PLATFORM' } as const;
 export type PaymentMethod = (typeof PaymentMethod)[keyof typeof PaymentMethod];
 
 export const Urgency = { LOW: 'LOW', NORMAL: 'NORMAL', HIGH: 'HIGH', EMERGENCY: 'EMERGENCY' } as const;
@@ -68,6 +68,7 @@ export const NotificationType = {
   JOB_CHANGE_PROPOSED: 'JOB_CHANGE_PROPOSED',
   JOB_CANCELLED: 'JOB_CANCELLED',
   PAYMENT_COMPLETED: 'PAYMENT_COMPLETED',
+  PAYMENT_TO_CONFIRM: 'PAYMENT_TO_CONFIRM',
   REVIEW_RECEIVED: 'REVIEW_RECEIVED',
   VERIFICATION_UPDATED: 'VERIFICATION_UPDATED',
   DISPUTE_UPDATED: 'DISPUTE_UPDATED',

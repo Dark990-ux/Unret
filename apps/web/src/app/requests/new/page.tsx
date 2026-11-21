@@ -6,6 +6,7 @@ import { MapPin, Wifi, X } from 'lucide-react';
 import { CategorySelect, CitySelect, useCategories } from '@/components/domain';
 import { Alert, Button, Card, Container, Field, FileUpload, Input, PageHeader, PageLoader, Select, Textarea } from '@/components/ui-exports';
 import { RequireAuth } from '@/components/shell';
+import { Method, PaymentMethodPicker } from '@/components/payment';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { majorToMinor } from '@/lib/format';
@@ -21,6 +22,7 @@ function NewRequest() {
     categoryId: sp.get('category') ?? '', title: '', description: '', serviceMode: 'ON_SITE', city: me?.city ?? '', lat: undefined as number | undefined, lng: undefined as number | undefined,
     addressText: me?.addressText ?? '', preferredDate: '', preferredTimeWindow: '', budgetMin: '', budgetMax: '', urgency: 'NORMAL',
   });
+  const [payment, setPayment] = useState<Method | null>(null);
   const [files, setFiles] = useState<{ key: string; name: string; url: string; mime: string }[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState<'draft' | 'publish' | null>(null);
@@ -46,7 +48,7 @@ function NewRequest() {
           addressText: f.serviceMode === 'REMOTE' ? undefined : f.addressText || undefined,
           preferredDate: f.preferredDate ? new Date(f.preferredDate + 'T12:00:00').toISOString() : undefined, preferredTimeWindow: f.preferredTimeWindow || undefined,
           budgetMinMinor: f.budgetMin ? majorToMinor(f.budgetMin) : undefined, budgetMaxMinor: f.budgetMax ? majorToMinor(f.budgetMax) : undefined,
-          urgency: f.urgency, attachmentKeys: files.map((x) => x.key), publish,
+          urgency: f.urgency, attachmentKeys: files.map((x) => x.key), publish, paymentMethod: payment ?? undefined,
         },
       });
       router.push(`/requests/${r.id}`);
@@ -128,11 +130,16 @@ function NewRequest() {
           </div>
         </Card>
 
+        <Card className="space-y-4 p-5 sm:p-6">
+          <h2 className="font-semibold text-ink dark:text-white">4. {t('How will you pay?')}</h2>
+          <PaymentMethodPicker value={payment} onChange={setPayment} />
+        </Card>
+
         {err && <Alert>{err}</Alert>}
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button type="button" variant="ghost" onClick={() => router.back()} className="sm:mr-auto">‹ {t('Back')}</Button>
           <Button type="button" variant="outline" loading={busy === 'draft'} disabled={!f.categoryId || !f.title} onClick={() => submit(false)}>{t('Save as draft')}</Button>
-          <Button type="submit" size="lg" loading={busy === 'publish'}>{t('Publish request')}</Button>
+          <Button type="submit" size="lg" loading={busy === 'publish'} disabled={!payment} title={!payment ? t('Choose how you will pay to publish the request.') : undefined}>{t('Publish request')}</Button>
         </div>
       </form>
     </Container>

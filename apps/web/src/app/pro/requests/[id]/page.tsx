@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { CalendarDays, MapPin, MessageSquare, ThumbsDown, Wifi } from 'lucide-react';
 import { Alert, Badge, Button, Card, Checkbox, Empty, Field, Input, KeyValue, PageHeader, PageLoader, Select, StatusBadge, Textarea } from '@/components/ui-exports';
 import { ProShell } from '@/components/shell';
+import { methodIcon, methodLabel } from '@/components/payment';
 import { api } from '@/lib/api';
 import { date, dateTime, fromLocalInput, majorToMinor, money, period, toLocalInput } from '@/lib/format';
 import { useApi } from '@/lib/hooks';
@@ -51,6 +52,7 @@ function ProRequest() {
             [t('Location'), r.serviceMode === 'REMOTE' ? <span key="r" className="inline-flex items-center gap-1"><Wifi className="h-3.5 w-3.5" />{t('Remote')}</span> : <span key="l" className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{r.addressText ? `${r.addressText}, ` : ''}{r.city}{r.match?.distanceKm != null ? ` · ${Math.round(r.match.distanceKm)} km` : ''}</span>],
             [t('Preferred date'), r.preferredDate ? `${period(r.preferredDate, r.preferredDateTo, intl)}${r.preferredTimeWindow ? ` · ${t(r.preferredTimeWindow[0].toUpperCase() + r.preferredTimeWindow.slice(1))}` : ''}` : t('Flexible')],
             [t('Budget'), r.budgetMinMinor || r.budgetMaxMinor ? [r.budgetMinMinor && money(r.budgetMinMinor, r.currency, intl), r.budgetMaxMinor && money(r.budgetMaxMinor, r.currency, intl)].filter(Boolean).join(' – ') : t('Not specified')],
+            [t('Payment'), r.paymentMethod ? `${methodIcon(r.paymentMethod)} ${t(methodLabel(r.paymentMethod))}` : t('Not specified')],
             [t('Offers so far'), r.offerCount],
             [t('Open until'), date(r.expiresAt, intl)],
           ]} />

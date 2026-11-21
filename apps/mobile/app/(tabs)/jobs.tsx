@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Badge, Card, Empty, Loader, Row, Screen, Segmented, StatusBadge, Text } from '@/components/ui';
+import { PaymentStateBadge } from '@/components/payment';
 import { useAuth } from '@/lib/auth';
 import { dateTime, money } from '@/lib/format';
 import { useApi } from '@/lib/hooks';
@@ -21,6 +22,7 @@ export default function Jobs() {
           <Text variant="small">{as === 'customer' ? j.professionalName : j.customerName} · {money(j.agreedPriceMinor, j.currency, intl)}</Text>
           <Text variant="small">{j.scheduledStartAt ? dateTime(j.scheduledStartAt, intl) : t('Not scheduled yet')}</Text>
           <Row gap={6}>
+            {j.paymentState && j.status !== 'CANCELLED' && <PaymentStateBadge state={j.paymentState} />}
             {j.pendingChanges > 0 && <Badge tone="amber">{t('Pending change')}</Badge>}
             {j.awaitingMyConfirmation && <Badge tone="violet">{t('Action needed')}</Badge>}
             {j.status === 'COMPLETED' && as === 'customer' && !j.reviewed && <Badge tone="blue">{t('Leave a review')}</Badge>}

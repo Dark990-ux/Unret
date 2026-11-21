@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsBoolean, IsDateString, IsEnum, IsInt, IsOptional, IsString, Length, MaxLength, Min } from 'class-validator';
+import { IsBoolean, IsDateString, IsEnum, IsIn, IsInt, IsOptional, IsString, Length, MaxLength, Min } from 'class-validator';
 import { OfferPriceType, PaymentMethod } from '@prisma/client';
 
 export class OfferTermsDto {
@@ -26,7 +26,7 @@ export class ReviseOfferDto extends OfferTermsDto {
 export class AcceptOfferDto {
   @ApiProperty({ description: 'Revision number the customer is accepting (guards against accepting a stale version)' })
   @IsInt() @Min(1) revision: number;
-  @ApiProperty({ enum: PaymentMethod }) @IsOptional() @IsEnum(PaymentMethod) paymentMethod?: PaymentMethod;
+  @ApiProperty({ enum: ['TRANSFER', 'CASH', 'PLATFORM'] }) @IsOptional() @IsIn(['TRANSFER', 'CASH', 'PLATFORM']) paymentMethod?: PaymentMethod;
 }
 
 export class ReasonDto {

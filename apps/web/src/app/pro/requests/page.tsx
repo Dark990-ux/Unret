@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Inbox, MapPin, Paperclip, Wifi } from 'lucide-react';
 import { Badge, Card, Empty, PageHeader, PageLoader, StatusBadge, Tabs } from '@/components/ui-exports';
 import { ProShell } from '@/components/shell';
+import { methodIcon, methodLabel } from '@/components/payment';
 import { date, money, period, timeAgo } from '@/lib/format';
 import { useApi } from '@/lib/hooks';
 import { useT } from '@/lib/i18n';
@@ -49,6 +50,7 @@ function RequestInbox() {
                   {r.serviceMode === 'REMOTE' ? <span className="inline-flex items-center gap-1"><Wifi className="h-3.5 w-3.5" />{t('Remote')}</span> : <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{r.city}{r.distanceKm != null && ` · ${r.distanceKm} km`}</span>}
                   {r.preferredDate && <span>{t('Preferred date')}: {period(r.preferredDate, r.preferredDateTo, intl)}</span>}
                   {r.attachmentCount > 0 && <span className="inline-flex items-center gap-1"><Paperclip className="h-3.5 w-3.5" />{r.attachmentCount}</span>}
+                  {r.paymentMethod && <span>{methodIcon(r.paymentMethod)} {t(methodLabel(r.paymentMethod))}</span>}
                   <span>{t('{n} offers so far', { n: r.offerCount })}</span>
                 </div>
               </Card>

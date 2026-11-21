@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { AlertTriangle, CalendarDays, Check, CreditCard, FileText, MessageSquare, Pencil, Play, Scale, Star, Wallet, X } from 'lucide-react';
 import { Alert, Avatar, Badge, Button, Card, Container, Empty, Field, Input, KeyValue, Modal, PageHeader, PageLoader, Select, StarInput, StatusBadge, Textarea } from '@/components/ui-exports';
 import { RequireAuth } from '@/components/shell';
+import { PaymentPanel } from '@/components/payment';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { dateTime, fromLocalInput, majorToMinor, money, toLocalInput } from '@/lib/format';
@@ -103,7 +104,6 @@ function JobDetail() {
             <KeyValue items={[
               [t('Agreed price'), <span key="p" className="text-lg">{money(j.agreedPriceMinor, j.currency, intl)} <span className="text-sm font-normal text-ink-muted">({j.priceType === 'FIXED' ? t('Fixed price') : t('Estimate')})</span></span>],
               [t('Appointment'), j.scheduledStartAt ? `${dateTime(j.scheduledStartAt, intl)} – ${new Date(j.scheduledEndAt).toLocaleTimeString(intl, { timeStyle: 'short' })}` : t('To be agreed — propose a time')],
-              [t('Payment'), j.paymentMethod === 'PLATFORM' ? t('Online through UNRET') : t('Directly to the professional')],
               [t('Location'), j.request.serviceMode === 'REMOTE' ? t('Remote') : [j.request.addressText, j.request.city].filter(Boolean).join(', ')],
             ]} />
             <div className="mt-4 border-t border-surface-line pt-4 dark:border-white/10">
@@ -127,23 +127,8 @@ function JobDetail() {
           </Card>
 
           <Card className="p-5 sm:p-6">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-              <h2 className="font-semibold text-ink dark:text-white">{t('Payments')}</h2>
-              <div className="flex gap-2">
-                {can('pay_online') && !paidOnline && <Button size="sm" onClick={() => setModal('payment')}><CreditCard className="h-3.5 w-3.5" />{t('Pay online')}</Button>}
-                {can('record_payment') && <Button size="sm" variant="outline" onClick={() => setModal('payment')}><Wallet className="h-3.5 w-3.5" />{t('Record direct payment')}</Button>}
-              </div>
-            </div>
-            {!j.payments.length ? <p className="text-sm text-ink-muted">{t('No payments recorded yet.')}</p> : (
-              <ul className="divide-y divide-surface-line text-sm dark:divide-white/10">
-                {j.payments.map((p: any) => (
-                  <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
-                    <span>{p.method === 'PLATFORM' ? t('Online payment') : t('Direct payment')}{p.paymentMethodNote ? ` · ${p.paymentMethodNote}` : ''} · <span className="text-ink-muted">{dateTime(p.createdAt, intl)}</span></span>
-                    <span className="flex items-center gap-2"><b className="tabular-nums">{money(p.grossMinor, p.currency, intl)}</b><StatusBadge status={p.status} /></span>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <h2 className="mb-3 font-semibold text-ink dark:text-white">{t('Payment')}</h2>
+            <PaymentPanel job={j} onUpdated={setData} />
           </Card>
 
           {j.review && (
@@ -204,7 +189,6 @@ function JobDetail() {
         onSubmit={async (reason) => { await act.run(`/jobs/${id}/cancel`, { reason }); setModal(null); }} />
       <DisputeModal open={modal === 'dispute'} onClose={() => setModal(null)} onSubmit={async (b) => { await act.run(`/jobs/${id}/disputes`, b); setModal(null); }} />
       <ReviewModal open={modal === 'review'} onClose={() => setModal(null)} onSubmit={async (b) => { await api('/reviews', { body: { ...b, jobId: id } }); setModal(null); reload(); }} />
-      <PaymentModal open={modal === 'payment'} onClose={() => setModal(null)} job={j} onDone={() => { setModal(null); reload(); }} />
     </Container>
   );
 }
@@ -214,7 +198,9 @@ function eventLabel(e: any, t: (s: string) => string) {
     CREATED: 'Job created from accepted offer', CONFIRMED: 'Completion confirmed', CHANGE_PROPOSED: 'Change proposed', CHANGE_ACCEPTED: 'Change accepted',
     CHANGE_REJECTED: 'Change declined', CANCELLED_BY_CUSTOMER: 'Cancelled by customer', CANCELLED_BY_PROFESSIONAL: 'Cancelled by professional',
     DISPUTE_OPENED: 'Dispute opened', DISPUTE_RESOLVED: 'Dispute resolved', AUTO_COMPLETED: 'Completed automatically', ASSIGNED: 'Assigned to team member',
-    PAYMENT_RECORDED: 'Payment recorded', PAYMENT_SUCCEEDED: 'Online payment received',
+    PAYMENT_RECORDED: 'Payment recorded', PAYMENT_SUCCEEDED: 'Paid through UNRET (held until the job is done)',
+    PAYMENT_MARKED_PAID: 'Customer says the payment was sent', PAYMENT_CONFIRMED: 'Professional confirmed receiving the payment',
+    PAYOUT_SENT: 'Payment sent to the professional', PAYMENT_REFUNDED: 'Payment refunded to the customer', PAYMENT_METHOD_CHANGED: 'Payment method changed',
   };
   if (e.type === 'STATUS_CHANGE') return `${t('Status')}: ${t({ ACCEPTED: 'Accepted', SCHEDULED: 'Scheduled', IN_PROGRESS: 'In progress', COMPLETED: 'Completed', CANCELLED: 'Cancelled', DISPUTED: 'Disputed' }[e.toStatus as string] ?? e.toStatus)}`;
   return t(map[e.type] ?? e.type);
@@ -298,56 +284,6 @@ function ReviewModal({ open, onClose, onSubmit }: { open: boolean; onClose: () =
         <Field label={t('Your feedback')} hint={t('Optional. Be honest and specific — it helps others.')}><Textarea value={f.text} onChange={(e) => setF({ ...f, text: e.target.value })} maxLength={3000} /></Field>
         {err && <Alert>{err}</Alert>}
         <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose}>{t('Cancel')}</Button><Button disabled={!ok} onClick={() => onSubmit({ ...f, text: f.text || undefined }).catch((e) => setErr(e.message))}>{t('Publish review')}</Button></div>
-      </div>
-    </Modal>
-  );
-}
-
-function PaymentModal({ open, onClose, job, onDone }: { open: boolean; onClose: () => void; job: any; onDone: () => void }) {
-  const { t, intl } = useT();
-  const [tab, setTab] = useState<'online' | 'direct'>(job.viewerRole === 'customer' && job.allowedActions.includes('pay_online') ? 'online' : 'direct');
-  const [amount, setAmount] = useState(String(job.agreedPriceMinor / 100));
-  const [method, setMethod] = useState('bank_transfer');
-  const [checkout, setCheckout] = useState<any | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const run = async (fn: () => Promise<void>) => { setBusy(true); setErr(null); try { await fn(); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); } };
-  return (
-    <Modal open={open} onClose={onClose} title={t('Payment')}>
-      <div className="space-y-4">
-        {job.viewerRole === 'customer' && (
-          <div className="flex gap-1 rounded-xl bg-surface-sunk p-1 dark:bg-white/5">
-            {(['online', 'direct'] as const).map((k) => <button key={k} onClick={() => setTab(k)} className={`flex-1 rounded-lg px-3 py-1.5 text-sm font-medium ${tab === k ? 'bg-white shadow-sm dark:bg-white/15' : 'text-ink-muted'}`}>{k === 'online' ? t('Pay online') : t('Record direct payment')}</button>)}
-          </div>
-        )}
-        {tab === 'online' ? (
-          !checkout ? (
-            <>
-              <p className="text-sm text-ink-soft dark:text-white/70">{t('You will pay {amount} securely through our payment provider. UNRET never sees or stores your card details.', { amount: money(job.agreedPriceMinor, job.currency, intl) })}</p>
-              <Button className="w-full" loading={busy} onClick={() => run(async () => setCheckout(await api(`/payments/jobs/${job.id}/checkout`, { method: 'POST' })))}>{t('Continue to payment')}</Button>
-            </>
-          ) : checkout.provider === 'mock' ? (
-            <>
-              <Alert tone="amber">{t('Development mode: no real payment provider is configured. Simulate the result below.')}</Alert>
-              <div className="flex gap-2">
-                <Button className="flex-1" loading={busy} onClick={() => run(async () => { await api(`/payments/${checkout.paymentId}/mock-confirm`, { body: { outcome: 'succeed' } }); onDone(); })}>{t('Simulate successful payment')}</Button>
-                <Button variant="outline" loading={busy} onClick={() => run(async () => { await api(`/payments/${checkout.paymentId}/mock-confirm`, { body: { outcome: 'fail' } }); onDone(); })}>{t('Simulate failure')}</Button>
-              </div>
-            </>
-          ) : <p className="text-sm">{t('Redirecting to payment…')}</p>
-        ) : (
-          <>
-            <p className="text-sm text-ink-muted">{t('Record a payment made outside UNRET. This is for your records only — UNRET does not process or guarantee direct payments.')}</p>
-            <Field label={t('Amount ({cur})', { cur: job.currency })}><Input type="number" min={0} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} /></Field>
-            <Field label={t('Method')}>
-              <Select value={method} onChange={(e) => setMethod(e.target.value)}>
-                <option value="cash">{t('Cash')}</option><option value="bank_transfer">{t('Bank transfer')}</option><option value="card_terminal">{t('Card (terminal)')}</option><option value="other">{t('Other')}</option>
-              </Select>
-            </Field>
-            <Button className="w-full" loading={busy} onClick={() => run(async () => { await api(`/payments/jobs/${job.id}/direct`, { body: { amountMinor: majorToMinor(amount), method } }); onDone(); })}>{t('Record payment')}</Button>
-          </>
-        )}
-        {err && <Alert>{err}</Alert>}
       </div>
     </Modal>
   );

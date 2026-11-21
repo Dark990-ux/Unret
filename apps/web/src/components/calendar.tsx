@@ -8,6 +8,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
 import { CitySelect } from './domain';
+import { Method, PaymentMethodPicker } from './payment';
 import { Alert, Button, Field, Input, Modal, Select, Textarea, cx } from './ui';
 
 type DayStatus = 'free' | 'partial' | 'booked' | 'closed' | 'past';
@@ -146,6 +147,7 @@ function RequestPeriodModal({ open, onClose, professionalId, professionalName, s
   const [f, setF] = useState({ categoryId: services[0]?.categoryId ?? '', title: '', description: '', city: me?.city ?? 'București', addressText: me?.addressText ?? '' });
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [payment, setPayment] = useState<Method | null>(null);
   const send = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true); setErr(null);
@@ -154,7 +156,7 @@ function RequestPeriodModal({ open, onClose, professionalId, professionalName, s
       const r = await api('/requests', { body: {
         categoryId: f.categoryId, title: f.title.trim(), description: f.description.trim(), serviceMode: 'ON_SITE',
         city: f.city, lat: c?.lat, lng: c?.lng, addressText: f.addressText || undefined,
-        preferredDate: `${start}T12:00:00.000Z`, preferredDateTo: `${end}T12:00:00.000Z`, professionalId, publish: true,
+        preferredDate: `${start}T12:00:00.000Z`, preferredDateTo: `${end}T12:00:00.000Z`, professionalId, publish: true, paymentMethod: payment ?? undefined,
       } });
       router.push(`/requests/${r.id}`);
     } catch (x) { setErr((x as Error).message); } finally { setBusy(false); }
@@ -176,10 +178,11 @@ function RequestPeriodModal({ open, onClose, professionalId, professionalName, s
           <Field label={t('City')} required><CitySelect id="period-city" value={f.city} onChange={(city) => setF({ ...f, city })} /></Field>
           <Field label={t('Address')} hint={t('Only shared with the professional you hire.')}><Input id="period-address" value={f.addressText} onChange={(e) => setF({ ...f, addressText: e.target.value })} /></Field>
         </div>
+        <Field label={t('How will you pay?')} required><PaymentMethodPicker name="period-payment" value={payment} onChange={setPayment} /></Field>
         {err && <Alert>{err}</Alert>}
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={onClose}>‹ {t('Back to calendar')}</Button>
-          <Button type="submit" loading={busy} className="!bg-accent-500 !text-accent-ink hover:!bg-accent-400">{t('Send request')}</Button>
+          <Button type="submit" loading={busy} disabled={!payment} className="!bg-accent-500 !text-accent-ink hover:!bg-accent-400">{t('Send request')}</Button>
         </div>
       </form>
     </Modal>

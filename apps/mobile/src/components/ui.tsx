@@ -156,6 +156,7 @@ const STATUS: Record<string, [string, Tone]> = {
   ACCEPTED: ['Accepted', 'green'], REJECTED: ['Rejected', 'red'], WITHDRAWN: ['Withdrawn', 'gray'], SCHEDULED: ['Scheduled', 'blue'],
   IN_PROGRESS: ['In progress', 'violet'], COMPLETED: ['Completed', 'green'], DISPUTED: ['Disputed', 'red'], HIDDEN: ['Hidden', 'gray'],
   LIMITED: ['Limited', 'amber'], PUBLIC: ['Public', 'green'], APPROVED: ['Approved', 'green'], RECORDED: ['Recorded', 'gray'], SUCCEEDED: ['Paid', 'green'], PROPOSED: ['Awaiting approval', 'amber'],
+  AWAITING_CONFIRMATION: ['Waiting for confirmation', 'blue'], CONFIRMED: ['Confirmed', 'green'],
 };
 export function StatusBadge({ status }: { status: string }) {
   const { t } = useT();

@@ -25,11 +25,11 @@ function Payments() {
   };
   return (
     <>
-      <PageHeader title={t('Payments')} actions={<Select value={status} onChange={(e) => setStatus(e.target.value)} aria-label={t('Status')}><option value="">{t('All statuses')}</option>{['RECORDED', 'PENDING', 'SUCCEEDED', 'FAILED', 'REFUNDED', 'PARTIALLY_REFUNDED'].map((s) => <option key={s}>{s}</option>)}</Select>} />
+      <PageHeader title={t('Payments')} actions={<Select value={status} onChange={(e) => setStatus(e.target.value)} aria-label={t('Status')}><option value="">{t('All statuses')}</option>{['AWAITING_CONFIRMATION', 'CONFIRMED', 'PENDING', 'SUCCEEDED', 'FAILED', 'REFUNDED', 'PARTIALLY_REFUNDED', 'RECORDED'].map((s) => <option key={s}>{s}</option>)}</Select>} />
       {loading ? <PageLoader /> : (
         <Card className="overflow-x-auto">
           <table className="w-full min-w-[900px] text-sm">
-            <thead className="text-left text-ink-muted"><tr className="border-b border-surface-line dark:border-white/10">{[t('Date'), t('Job'), t('Method'), t('Gross'), t('Platform fee'), t('Provider fee'), t('Payout'), t('Refunded'), t('Reference'), t('Status'), ''].map((h, i) => <th key={i} className="p-3 font-medium">{h}</th>)}</tr></thead>
+            <thead className="text-left text-ink-muted"><tr className="border-b border-surface-line dark:border-white/10">{[t('Date'), t('Job'), t('Method'), t('Gross'), t('Platform fee'), t('Provider fee'), t('Payout'), t('Refunded'), t('Reference'), t('Status'), t('Payout status'), ''].map((h, i) => <th key={i} className="p-3 font-medium">{h}</th>)}</tr></thead>
             <tbody>
               {data?.items.map((p) => (
                 <tr key={p.id} className="border-b border-surface-line last:border-0 dark:border-white/10">
@@ -39,6 +39,7 @@ function Payments() {
                   {[p.grossMinor, p.platformFeeMinor, p.providerFeeMinor, p.payoutMinor, p.refundedMinor].map((v, i) => <td key={i} className="p-3 text-right tabular-nums">{money(v, p.currency, intl)}</td>)}
                   <td className="max-w-[140px] truncate p-3 font-mono text-xs">{p.providerReference ?? '—'}</td>
                   <td className="p-3"><StatusBadge status={p.status} /></td>
+                  <td className="p-3"><StatusBadge status={p.payoutStatus} /></td>
                   <td className="p-3">{p.method === 'PLATFORM' && ['SUCCEEDED', 'PARTIALLY_REFUNDED'].includes(p.status) && <Button size="sm" variant="outline" onClick={() => refund(p)}>{t('Refund')}</Button>}</td>
                 </tr>
               ))}

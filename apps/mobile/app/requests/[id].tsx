@@ -2,6 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Alert as RNAlert, View } from 'react-native';
 import { Rating, VerificationBadges } from '@/components/domain';
+import { Method, methodIcon, methodLabel, PaymentMethodPicker } from '@/components/payment';
 import { Alert, Avatar, Badge, Button, Card, Divider, Empty, Field, Input, KV, Loader, Row, Screen, Section, Segmented, Sheet, StatusBadge, Text } from '@/components/ui';
 import { absUrl, api } from '@/lib/api';
 import { date, dateTime, money, period } from '@/lib/format';
@@ -17,7 +18,7 @@ export default function RequestDetail() {
   const offers = useApi<any[]>(isOwner ? `/offers/request/${id}` : null);
   const [accepting, setAccepting] = useState<any | null>(null);
   const [modifying, setModifying] = useState<any | null>(null);
-  const [payment, setPayment] = useState<'DIRECT' | 'PLATFORM'>('DIRECT');
+  const [payment, setPayment] = useState<Method | null>(null);
   const [msg, setMsg] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -87,6 +88,7 @@ export default function RequestDetail() {
           <KV label={t('Location')} value={r.serviceMode === 'REMOTE' ? t('Remote') : [r.addressText, r.city].filter(Boolean).join(', ')} />
           <KV label={t('Preferred date')} value={period(r.preferredDate, r.preferredDateTo, intl) ?? t('Flexible')} />
           <KV label={t('Budget')} value={r.budgetMaxMinor ? money(r.budgetMaxMinor, r.currency, intl) : t('Not specified')} />
+          {r.paymentMethod && <KV label={t('Payment')} value={`${methodIcon(r.paymentMethod)} ${t(methodLabel(r.paymentMethod))}`} />}
           {open && <KV label={t('Open until')} value={date(r.expiresAt, intl)} />}
         </Card>
       </Section>
@@ -95,13 +97,11 @@ export default function RequestDetail() {
       <Sheet open={!!accepting} onClose={() => setAccepting(null)} title={t('Accept this offer?')}>
         {accepting && (<>
           <Alert tone="blue">{t('Accepting creates a job agreement for {price} with {name}. Other offers will be declined. Any later change to price or scope must be approved by both of you.', { price: money(accepting.latest.priceMinor, accepting.latest.currency, intl), name: accepting.professional.displayName })}</Alert>
-          <Field label={t('How will you pay?')}>
-            <Segmented value={payment} onChange={setPayment} items={[{ value: 'DIRECT', label: t('Directly to the professional') }, { value: 'PLATFORM', label: t('Online through UNRET') }]} />
-          </Field>
-          {payment === 'DIRECT' && <Text variant="small">{t('UNRET records the agreed price and payment method but does not process or guarantee direct payments.')}</Text>}
+          <Field label={t('How will you pay?')}><PaymentMethodPicker value={payment ?? r.paymentMethod ?? null} onChange={setPayment} /></Field>
+          {(payment ?? r.paymentMethod) !== 'PLATFORM' && <Text variant="small">{t('UNRET records the agreed price and payment method but does not process or guarantee direct payments.')}</Text>}
           <Button title={t('Accept offer')} loading={busy} onPress={async () => {
             const o = accepting; setBusy(true); setErr(null);
-            try { const job = await api(`/offers/${o.id}/accept`, { body: { revision: o.currentRevision, paymentMethod: payment } }); setAccepting(null); router.replace(`/jobs/${job.id}`); }
+            try { const job = await api(`/offers/${o.id}/accept`, { body: { revision: o.currentRevision, paymentMethod: payment ?? r.paymentMethod ?? 'TRANSFER' } }); setAccepting(null); router.replace(`/jobs/${job.id}`); }
             catch (e) { setErr((e as Error).message); setAccepting(null); } finally { setBusy(false); }
           }} />
         </>)}

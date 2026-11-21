@@ -100,17 +100,28 @@ enum AppointmentStatus {
 }
 
 enum PaymentMethod {
-  DIRECT
-  PLATFORM
+  DIRECT // legacy: paid directly, method not specified
+  TRANSFER // card / bank transfer straight to the professional; professional confirms receipt
+  CASH // paid face to face; professional confirms receipt
+  PLATFORM // paid through UNRET; held until the job is completed, then paid out
 }
 
 enum PaymentStatus {
   RECORDED // direct payment — recorded only, not processed
+  AWAITING_CONFIRMATION // customer says they paid; waiting for the professional to confirm
+  CONFIRMED // professional confirmed they received the money (transfer or cash)
   PENDING
   SUCCEEDED
   FAILED
   REFUNDED
   PARTIALLY_REFUNDED
+}
+
+enum PayoutStatus {
+  NOT_APPLICABLE // direct payments: the money went straight to the professional
+  HELD // paid through UNRET, waiting for the job to be completed
+  SENT // paid out to the professional
+  REFUNDED // returned to the customer instead
 }
 
 enum VerificationType {
@@ -501,15 +512,15 @@ model Appointment {
 // ───────────────────────── Requests ─────────────────────────
 
 model ServiceRequest {
-  id                   String        @id @default(uuid())
+  id                   String         @id @default(uuid())
   customerId           String
   categoryId           String
   title                String
   description          String
-  serviceMode          ServiceMode   @default(ON_SITE)
+  serviceMode          ServiceMode    @default(ON_SITE)
   addressText          String?
   city                 String?
-  countryCode          String        @db.Char(2)
+  countryCode          String         @db.Char(2)
   lat                  Float?
   lng                  Float?
   preferredDate        DateTime?
@@ -520,15 +531,17 @@ model ServiceRequest {
   targetProfessionalId String?
   budgetMinMinor       Int?
   budgetMaxMinor       Int?
-  currency             String        @db.Char(3)
-  urgency              Urgency       @default(NORMAL)
-  status               RequestStatus @default(DRAFT)
-  matchWave            Int           @default(0)
+  currency             String         @db.Char(3)
+  urgency              Urgency        @default(NORMAL)
+  /// How the customer intends to pay (shown to professionals before they quote).
+  paymentMethod        PaymentMethod?
+  status               RequestStatus  @default(DRAFT)
+  matchWave            Int            @default(0)
   publishedAt          DateTime?
   expiresAt            DateTime?
   cancelledAt          DateTime?
-  createdAt            DateTime      @default(now())
-  updatedAt            DateTime      @updatedAt
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
 
   customer           User                 @relation(fields: [customerId], references: [id])
   category           ServiceCategory      @relation(fields: [categoryId], references: [id])
@@ -838,21 +851,28 @@ model SavedProfessional {
 // ───────────────────────── Payments ─────────────────────────
 
 model Payment {
-  id                String        @id @default(uuid())
-  jobId             String
-  method            PaymentMethod
-  provider          String? // e.g. "stripe", "mock"; null for DIRECT
-  providerReference String?       @unique
-  grossMinor        Int
-  platformFeeMinor  Int           @default(0)
-  providerFeeMinor  Int           @default(0)
-  payoutMinor       Int           @default(0)
-  refundedMinor     Int           @default(0)
-  currency          String        @db.Char(3)
-  status            PaymentStatus
-  paymentMethodNote String? // e.g. "cash", "bank transfer", "card"
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  id                   String        @id @default(uuid())
+  jobId                String
+  method               PaymentMethod
+  provider             String? // e.g. "stripe", "mock"; null for DIRECT
+  providerReference    String?       @unique
+  grossMinor           Int
+  platformFeeMinor     Int           @default(0)
+  providerFeeMinor     Int           @default(0)
+  payoutMinor          Int           @default(0)
+  refundedMinor        Int           @default(0)
+  currency             String        @db.Char(3)
+  status               PaymentStatus
+  paymentMethodNote    String? // e.g. "cash", "bank transfer", "card"
+  /// Customer said they paid (transfer), before the professional confirmed.
+  customerMarkedPaidAt DateTime?
+  confirmedById        String?
+  confirmedAt          DateTime?
+  payoutStatus         PayoutStatus  @default(NOT_APPLICABLE)
+  payoutReference      String?
+  payoutAt             DateTime?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
 
   job Job @relation(fields: [jobId], references: [id])
 

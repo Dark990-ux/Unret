@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Image, View } from 'react-native';
 import { CategorySelect, CitySelect, DateTimeField, useCategories, useUploader } from '@/components/domain';
 import { Alert, Button, Card, Chip, Field, Input, Row, Screen, Segmented, Text } from '@/components/ui';
+import { Method, PaymentMethodPicker } from '@/components/payment';
 import { absUrl, api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { majorToMinor } from '@/lib/format';
@@ -16,6 +17,7 @@ export default function NewRequest() {
   const { flat } = useCategories();
   const [f, setF] = useState({ categoryId: params.category ?? '', title: '', description: '', serviceMode: 'ON_SITE', city: me?.city ?? '', lat: undefined as number | undefined, lng: undefined as number | undefined, addressText: me?.addressText ?? '', budgetMax: '', urgency: 'NORMAL', timeWindow: '' });
   const [date, setDate] = useState<Date | null>(null);
+  const [payment, setPayment] = useState<Method | null>(null);
   const [files, setFiles] = useState<{ key: string; url: string }[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -31,7 +33,7 @@ export default function NewRequest() {
         categoryId: f.categoryId, title: f.title.trim(), description: f.description.trim(), serviceMode: f.serviceMode,
         city: remote ? undefined : f.city, lat: remote ? undefined : f.lat, lng: remote ? undefined : f.lng, addressText: remote ? undefined : f.addressText || undefined,
         preferredDate: date?.toISOString(), preferredTimeWindow: f.timeWindow || undefined, budgetMaxMinor: majorToMinor(f.budgetMax), urgency: f.urgency,
-        attachmentKeys: files.map((x) => x.key), publish,
+        attachmentKeys: files.map((x) => x.key), publish, paymentMethod: payment ?? undefined,
       } });
       router.replace(`/requests/${r.id}`);
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
@@ -72,8 +74,13 @@ export default function NewRequest() {
         </Field>
         <Field label={t('Budget up to (RON)')} hint={t('Optional')}><Input value={f.budgetMax} onChangeText={(budgetMax) => setF({ ...f, budgetMax })} keyboardType="decimal-pad" /></Field>
       </Card>
+      <Card>
+        <Text variant="h2">4. {t('How will you pay?')}</Text>
+        <PaymentMethodPicker value={payment} onChange={setPayment} />
+      </Card>
       {err && <Alert>{err}</Alert>}
-      <Button title={t('Publish request')} onPress={() => submit(true)} loading={busy} disabled={!f.categoryId || f.title.length < 5 || f.description.length < 20} />
+      <Button title={t('Publish request')} onPress={() => submit(true)} loading={busy} disabled={!f.categoryId || f.title.length < 5 || f.description.length < 20 || !payment} />
+      {!payment && <Text variant="small" style={{ textAlign: 'center' }}>{t('Choose how you will pay to publish the request.')}</Text>}
       <Row style={{ flexWrap: 'nowrap' }}>
         <Button title={`‹ ${t('Back')}`} variant="outline" onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))} style={{ flex: 1 }} />
         <Button title={t('Save as draft')} variant="ghost" onPress={() => submit(false)} disabled={busy || !f.categoryId || f.title.length < 5} style={{ flex: 1 }} />

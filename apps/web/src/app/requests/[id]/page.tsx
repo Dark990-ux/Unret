@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { CalendarDays, Check, History, Inbox, MapPin, MessageSquare, Package, Timer } from 'lucide-react';
 import { Rating, VerificationBadges } from '@/components/domain';
+import { Method, methodIcon, methodLabel, PaymentMethodPicker } from '@/components/payment';
 import { Alert, Avatar, Badge, Button, Card, Container, Empty, Field, KeyValue, Modal, PageHeader, PageLoader, Select, StatusBadge, Textarea } from '@/components/ui-exports';
 import { RequireAuth } from '@/components/shell';
 import { api } from '@/lib/api';
@@ -29,7 +30,7 @@ function RequestDetail() {
   const [accepting, setAccepting] = useState<any | null>(null);
   const [modifying, setModifying] = useState<any | null>(null);
   const [history, setHistory] = useState<any | null>(null);
-  const [payment, setPayment] = useState('DIRECT');
+  const [payment, setPayment] = useState<Method | null>(null);
   const [message, setMessage] = useState('');
   const act = useAction(async (fn: () => Promise<unknown>) => { await fn(); await Promise.all([req.reload(), offers.reload()]); });
 
@@ -121,6 +122,7 @@ function RequestDetail() {
               [t('Location'), r.serviceMode === 'REMOTE' ? t('Remote') : <span><MapPin className="mr-1 inline h-3.5 w-3.5 align-[-2px]" />{[r.addressText, r.city].filter(Boolean).join(', ')}</span>],
               [t('Preferred date'), r.preferredDate ? `${period(r.preferredDate, r.preferredDateTo, intl)}${r.preferredTimeWindow ? ` · ${t(r.preferredTimeWindow[0].toUpperCase() + r.preferredTimeWindow.slice(1))}` : ''}` : t('Flexible')],
               [t('Budget'), r.budgetMinMinor || r.budgetMaxMinor ? `${r.budgetMinMinor ? money(r.budgetMinMinor, r.currency, intl) : ''}${r.budgetMinMinor && r.budgetMaxMinor ? ' – ' : ''}${r.budgetMaxMinor ? money(r.budgetMaxMinor, r.currency, intl) : ''}` : t('Not specified')],
+              [t('Payment'), r.paymentMethod ? `${methodIcon(r.paymentMethod)} ${t(methodLabel(r.paymentMethod))}` : t('Not specified')],
               [t('Urgency'), t({ LOW: 'Not urgent', NORMAL: 'Normal', HIGH: 'Soon', EMERGENCY: 'Emergency' }[r.urgency as string] ?? r.urgency)],
               ...(r.expiresAt && open ? [[t('Open until'), date(r.expiresAt, intl)] as [string, string]] : []),
             ]} />
@@ -140,20 +142,15 @@ function RequestDetail() {
         {accepting && (
           <div className="space-y-4">
             <Alert tone="blue">{t('Accepting creates a job agreement for {price} with {name}. Other offers will be declined. Any later change to price or scope must be approved by both of you.', { price: money(accepting.latest.priceMinor, accepting.latest.currency, intl), name: accepting.professional.displayName })}</Alert>
-            <Field label={t('How will you pay?')}>
-              <Select value={payment} onChange={(e) => setPayment(e.target.value)}>
-                <option value="DIRECT">{t('Directly to the professional (cash, transfer)')}</option>
-                <option value="PLATFORM">{t('Online through UNRET')}</option>
-              </Select>
-            </Field>
-            {payment === 'DIRECT' && <p className="text-xs text-ink-muted">{t('UNRET records the agreed price and payment method but does not process or guarantee direct payments.')}</p>}
+            <Field label={t('How will you pay?')}><PaymentMethodPicker name="accept-payment" value={payment ?? r.paymentMethod ?? null} onChange={setPayment} /></Field>
+            {(payment ?? r.paymentMethod) !== 'PLATFORM' && <p className="text-xs text-ink-muted">{t('UNRET records the agreed price and payment method but does not process or guarantee direct payments.')}</p>}
             <div className="flex justify-end gap-2">
               <Button variant="ghost" onClick={() => setAccepting(null)}>{t('Cancel')}</Button>
               <Button loading={act.pending} onClick={async () => {
                 const o = accepting;
                 setAccepting(null);
                 let jobId: string | undefined;
-                await act.run(async () => { jobId = (await api(`/offers/${o.id}/accept`, { body: { revision: o.currentRevision, paymentMethod: payment } })).id; });
+                await act.run(async () => { jobId = (await api(`/offers/${o.id}/accept`, { body: { revision: o.currentRevision, paymentMethod: payment ?? r.paymentMethod ?? 'TRANSFER' } })).id; });
                 if (jobId) router.push(`/jobs/${jobId}`);
               }}>{t('Accept offer')}</Button>
             </div>

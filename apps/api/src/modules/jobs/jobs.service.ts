@@ -10,11 +10,30 @@ import { CategoriesService } from '../categories/categories.service';
 import { ConversationsService } from '../conversations/conversations.service';
 import { StorageService } from '../files/storage.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { PayoutsService } from '../payments/payouts.service';
 import { ProfessionalsService } from '../professionals/professionals.service';
 import { DisputeDto, JobsQuery, ProposeChangeDto } from './jobs.dto';
 
 type Tx = Prisma.TransactionClient;
 export type JobRole = 'customer' | 'professional' | 'admin';
+
+/**
+ * Payment state of a job, derived from its method and payments:
+ * unpaid → awaiting_confirmation (customer says paid) → paid (professional confirmed, transfer/cash)
+ * unpaid → processing → held (paid through UNRET) → paid_out (sent to the professional) | refunded
+ */
+export type PaymentState = 'unpaid' | 'awaiting_confirmation' | 'paid' | 'processing' | 'held' | 'paid_out' | 'refunded';
+export function paymentState(method: string, payments: { method: string; status: string; payoutStatus: string }[]): PaymentState {
+  const live = payments.filter((p) => p.status !== 'FAILED');
+  if (live.some((p) => p.status === 'CONFIRMED' || p.status === 'RECORDED')) return 'paid';
+  const platform = live.filter((p) => p.method === 'PLATFORM');
+  if (platform.some((p) => p.payoutStatus === 'SENT')) return 'paid_out';
+  if (platform.some((p) => ['SUCCEEDED', 'PARTIALLY_REFUNDED'].includes(p.status) && p.payoutStatus === 'HELD')) return 'held';
+  if (platform.some((p) => p.status === 'REFUNDED')) return 'refunded';
+  if (platform.some((p) => p.status === 'PENDING')) return 'processing';
+  if (live.some((p) => p.status === 'AWAITING_CONFIRMATION')) return 'awaiting_confirmation';
+  return 'unpaid';
+}
 
 /** Days after the professional marks a job complete before it auto-completes without customer response. */
 export const AUTO_COMPLETE_DAYS = 7;
@@ -30,6 +49,7 @@ export class JobsService {
     private categories: CategoriesService,
     private storage: StorageService,
     private audit: AuditService,
+    private payouts: PayoutsService,
   ) {}
 
   /** Resolves the caller's role on a job: customer, the professional (or their company team), or admin. */
@@ -77,6 +97,7 @@ export class JobsService {
           professional: { select: { id: true, businessName: true, user: { select: { name: true } } } },
           review: { select: { id: true, overall: true } },
           changes: { where: { status: 'PROPOSED' }, select: { id: true } },
+          payments: { select: { method: true, status: true, payoutStatus: true } },
         },
       }),
       this.prisma.job.count({ where }),
@@ -89,6 +110,7 @@ export class JobsService {
         scheduledStartAt: j.scheduledStartAt, scheduledEndAt: j.scheduledEndAt, createdAt: j.createdAt, completedAt: j.completedAt,
         customerName: j.customer.name, professionalName: j.professional.businessName ?? j.professional.user.name, professionalId: j.professional.id,
         reviewed: !!j.review, pendingChanges: j.changes.length,
+        paymentMethod: j.paymentMethod, paymentState: paymentState(j.paymentMethod, j.payments),
         awaitingMyConfirmation: j.status === 'IN_PROGRESS' && (as === 'customer' ? !!j.professionalConfirmedAt && !j.customerConfirmedAt : !j.professionalConfirmedAt),
       })),
       total, q,
@@ -128,11 +150,12 @@ export class JobsService {
       conversations: undefined,
       assignee,
       company: role === 'professional' ? j.company : j.company ? { id: j.company.id, displayName: j.company.displayName } : null,
-      allowedActions: this.allowedActions(j, role, user.id),
+      paymentState: paymentState(j.paymentMethod, j.payments),
+      allowedActions: this.allowedActions({ ...j, paymentState: paymentState(j.paymentMethod, j.payments) }, role, user.id),
     };
   }
 
-  private allowedActions(j: { status: JobStatus; customerConfirmedAt: Date | null; professionalConfirmedAt: Date | null; review: unknown; completedAt: Date | null }, role: JobRole, _uid: string) {
+  private allowedActions(j: { status: JobStatus; customerConfirmedAt: Date | null; professionalConfirmedAt: Date | null; review: unknown; completedAt: Date | null; paymentMethod: string; paymentState: PaymentState }, role: JobRole, _uid: string) {
     const a: string[] = [];
     const open = ['ACCEPTED', 'SCHEDULED', 'IN_PROGRESS'].includes(j.status);
     if (role === 'professional' && ['ACCEPTED', 'SCHEDULED'].includes(j.status)) a.push('start');
@@ -143,8 +166,13 @@ export class JobsService {
     if (open && role !== 'admin') a.push('propose_change', 'cancel');
     if (['ACCEPTED', 'SCHEDULED', 'IN_PROGRESS', 'COMPLETED'].includes(j.status) && role !== 'admin') a.push('open_dispute');
     if (j.status === 'COMPLETED' && role === 'customer' && !j.review) a.push('review');
-    if (['ACCEPTED', 'SCHEDULED', 'IN_PROGRESS', 'COMPLETED'].includes(j.status) && role !== 'admin') a.push('record_payment');
-    if (['ACCEPTED', 'SCHEDULED', 'IN_PROGRESS', 'COMPLETED'].includes(j.status) && role === 'customer') a.push('pay_online');
+    const payable = ['ACCEPTED', 'SCHEDULED', 'IN_PROGRESS', 'COMPLETED'].includes(j.status);
+    const direct = j.paymentMethod !== 'PLATFORM';
+    const unpaid = j.paymentState === 'unpaid';
+    if (payable && role === 'customer' && unpaid) a.push('change_payment_method');
+    if (payable && role === 'customer' && direct && j.paymentMethod !== 'CASH' && unpaid) a.push('mark_paid');
+    if ((payable || j.status === 'DISPUTED') && role === 'professional' && direct && (unpaid || j.paymentState === 'awaiting_confirmation')) a.push('confirm_payment');
+    if (payable && role === 'customer' && !direct && (unpaid || j.paymentState === 'processing')) a.push('pay_online');
     return a;
   }
 
@@ -182,6 +210,7 @@ export class JobsService {
       }
     });
     if (bothConfirmed) {
+      await this.payouts.releaseForJob(jobId);
       await this.professionals.recomputeReputation(job.professionalId);
       await this.notifyStatus(otherUserId, jobId, job.request.title, 'Job completed');
       if (role === 'professional') await this.notifyStatus(job.customerId, jobId, job.request.title, 'Job completed — please leave a review');
@@ -208,6 +237,7 @@ export class JobsService {
         await this.transition(tx, j.id, 'IN_PROGRESS', 'COMPLETED', null, 'AUTO_COMPLETED', `No customer response within ${AUTO_COMPLETE_DAYS} days`, { completedAt: new Date() });
         await tx.appointment.updateMany({ where: { jobId: j.id, status: 'RESERVED' }, data: { status: 'DONE' } });
       });
+      await this.payouts.releaseForJob(j.id);
       await this.professionals.recomputeReputation(j.professionalId);
       await this.notifyStatus(j.customerId, j.id, j.request.title, 'Job automatically marked as completed');
     }
@@ -226,6 +256,7 @@ export class JobsService {
       await tx.jobChange.updateMany({ where: { jobId, status: 'PROPOSED' }, data: { status: 'WITHDRAWN' } });
       await this.audit.log({ actorId: user.id, action: 'job.cancel', entityType: 'Job', entityId: jobId, metadata: { role, reason } }, tx);
     });
+    await this.payouts.refundHeldForJob(jobId, `Job cancelled by the ${role}`);
     await this.professionals.recomputeReputation(job.professionalId);
     await this.notifications.notify({
       userId: otherUserId, type: 'JOB_CANCELLED', title: 'Job cancelled',
@@ -344,6 +375,8 @@ export class JobsService {
       }
       await this.audit.log({ actorId: admin.id, action: 'admin.dispute.resolve', entityType: 'Dispute', entityId: disputeId, metadata: { outcome, resolution } }, tx);
     });
+    if (outcome === 'COMPLETED') await this.payouts.releaseForJob(d.jobId);
+    if (outcome === 'CANCELLED') await this.payouts.refundHeldForJob(d.jobId, 'Dispute resolved by cancelling the job');
     await this.professionals.recomputeReputation(d.job.professionalId);
     for (const uid of [d.job.customerId, d.job.professional.userId])
       await this.notifications.notify({ userId: uid, type: 'DISPUTE_UPDATED', title: 'Dispute resolved', body: `"${d.job.request.title}": ${resolution}`, data: { jobId: d.jobId, url: `/jobs/${d.jobId}` } });

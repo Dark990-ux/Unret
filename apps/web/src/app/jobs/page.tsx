@@ -6,6 +6,7 @@ import { Suspense, useState } from 'react';
 import { Briefcase } from 'lucide-react';
 import { Badge, Card, Container, Empty, PageHeader, PageLoader, StatusBadge, Tabs } from '@/components/ui-exports';
 import { ProShell, RequireAuth } from '@/components/shell';
+import { PaymentStateBadge } from '@/components/payment';
 import { useAuth } from '@/lib/auth';
 import { dateTime, money } from '@/lib/format';
 import { useApi } from '@/lib/hooks';
@@ -35,6 +36,7 @@ function JobsList() {
                 <div className="text-sm text-ink-soft dark:text-white/60">{j.scheduledStartAt ? dateTime(j.scheduledStartAt, intl) : t('Not scheduled yet')}</div>
               </div>
               <div className="flex shrink-0 flex-wrap items-center gap-2">
+                {j.paymentState && j.status !== 'CANCELLED' && <PaymentStateBadge state={j.paymentState} />}
                 {j.pendingChanges > 0 && <Badge tone="amber">{t('Pending change')}</Badge>}
                 {j.awaitingMyConfirmation && <Badge tone="violet">{t('Action needed')}</Badge>}
                 {j.status === 'COMPLETED' && as === 'customer' && !j.reviewed && <Badge tone="blue">{t('Leave a review')}</Badge>}

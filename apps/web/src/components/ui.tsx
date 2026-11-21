@@ -95,6 +95,7 @@ const STATUS: Record<string, [string, Tone]> = {
   DELETED: ['Deleted', 'gray'], HIDDEN: ['Hidden', 'gray'], LIMITED: ['Limited', 'amber'], PUBLIC: ['Public', 'green'],
   RECORDED: ['Recorded', 'gray'], SUCCEEDED: ['Paid', 'green'], FAILED: ['Failed', 'red'], REFUNDED: ['Refunded', 'gray'],
   PARTIALLY_REFUNDED: ['Partially refunded', 'amber'], PROPOSED: ['Awaiting approval', 'amber'],
+  AWAITING_CONFIRMATION: ['Waiting for confirmation', 'blue'], CONFIRMED: ['Confirmed', 'green'], HELD: ['Held by UNRET', 'violet'], SENT: ['Sent', 'green'], NOT_APPLICABLE: ['Direct', 'gray'],
 };
 export function StatusBadge({ status }: { status: string }) {
   const { t } = useT();

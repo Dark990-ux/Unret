@@ -19,7 +19,7 @@ const NOTIF_LABELS: Record<string, string> = {
   NEW_MATCHING_REQUEST: 'New matching request', NEW_OFFER: 'New offer', OFFER_ACCEPTED: 'Offer accepted', OFFER_REJECTED: 'Offer declined',
   OFFER_MODIFICATION_REQUESTED: 'Offer changes requested', OFFER_REVISED: 'Offer revised', NEW_MESSAGE: 'New message',
   APPOINTMENT_APPROACHING: 'Appointment reminder', JOB_STATUS_CHANGED: 'Job updates', JOB_CHANGE_PROPOSED: 'Proposed job changes',
-  JOB_CANCELLED: 'Job cancelled', PAYMENT_COMPLETED: 'Payment completed', REVIEW_RECEIVED: 'Review received',
+  JOB_CANCELLED: 'Job cancelled', PAYMENT_COMPLETED: 'Payment completed', PAYMENT_TO_CONFIRM: 'Payment to confirm', REVIEW_RECEIVED: 'Review received',
   VERIFICATION_UPDATED: 'Verification result', DISPUTE_UPDATED: 'Dispute updates',
 };
 

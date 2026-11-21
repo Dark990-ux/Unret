@@ -2,6 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Image, Pressable, View } from 'react-native';
 import { DateTimeField } from '@/components/domain';
+import { methodIcon, methodLabel } from '@/components/payment';
 import { useTheme } from '@/components/theme';
 import { Alert, Badge, Button, Card, Empty, Field, Input, KV, Loader, Row, Screen, Section, Segmented, StatusBadge, Text } from '@/components/ui';
 import { absUrl, api } from '@/lib/api';
@@ -33,6 +34,7 @@ export default function ProRequest() {
         {!r.addressText && r.serviceMode !== 'REMOTE' && <Text variant="small">{t('The exact address is shared once your offer is accepted.')}</Text>}
         <KV label={t('Preferred date')} value={period(r.preferredDate, r.preferredDateTo, intl) ?? t('Flexible')} />
         <KV label={t('Budget')} value={r.budgetMaxMinor ? `≤ ${money(r.budgetMaxMinor, r.currency, intl)}` : t('Not specified')} />
+        {r.paymentMethod && <KV label={t('Payment')} value={`${methodIcon(r.paymentMethod)} ${t(methodLabel(r.paymentMethod))}`} />}
         <KV label={t('Offers so far')} value={r.offerCount} />
         {r.attachments.length > 0 && <Row>{r.attachments.map((a: any) => <Image key={a.id} source={{ uri: absUrl(a.url)! }} style={{ width: 72, height: 72, borderRadius: 10 }} />)}</Row>}
       </Card>

@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { CitySelect } from './domain';
+import { Method, PaymentMethodPicker } from './payment';
 import { useTheme } from './theme';
 import { Alert, Button, Field, Input, Row, Select, Sheet, Text } from './ui';
 import { api } from '@/lib/api';
@@ -155,6 +156,7 @@ function RequestPeriodSheet({ open, onClose, professionalId, professionalName, s
   const [f, setF] = useState({ categoryId: services[0]?.categoryId ?? '', title: '', description: '', city: me?.city ?? 'București', addressText: me?.addressText ?? '' });
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [payment, setPayment] = useState<Method | null>(null);
   const send = async () => {
     setBusy(true); setErr(null);
     try {
@@ -162,7 +164,7 @@ function RequestPeriodSheet({ open, onClose, professionalId, professionalName, s
       const r = await api('/requests', { body: {
         categoryId: f.categoryId, title: f.title.trim(), description: f.description.trim(), serviceMode: 'ON_SITE',
         city: f.city, lat: c?.lat, lng: c?.lng, addressText: f.addressText || undefined,
-        preferredDate: `${start}T12:00:00.000Z`, preferredDateTo: `${end}T12:00:00.000Z`, professionalId, publish: true,
+        preferredDate: `${start}T12:00:00.000Z`, preferredDateTo: `${end}T12:00:00.000Z`, professionalId, publish: true, paymentMethod: payment ?? undefined,
       } });
       onClose();
       router.push(`/requests/${r.id}`);
@@ -176,8 +178,9 @@ function RequestPeriodSheet({ open, onClose, professionalId, professionalName, s
       <Field label={t('What do you need?')} hint={t('Describe the job: what, how much, any details that help professionals quote accurately.')} required><Input multiline value={f.description} onChangeText={(description) => setF({ ...f, description })} accessibilityLabel={t('What do you need?')} /></Field>
       <Field label={t('City')} required><CitySelect value={f.city} onChange={(city) => setF({ ...f, city })} /></Field>
       <Field label={t('Address')} hint={t('Only shared with the professional you hire.')}><Input value={f.addressText} onChangeText={(addressText) => setF({ ...f, addressText })} /></Field>
+      <Field label={t('How will you pay?')} required><PaymentMethodPicker value={payment} onChange={setPayment} /></Field>
       {err && <Alert>{err}</Alert>}
-      <Button title={t('Send request')} variant="sun" onPress={send} loading={busy} disabled={!f.categoryId || f.title.trim().length < 5 || f.description.trim().length < 20} />
+      <Button title={t('Send request')} variant="sun" onPress={send} loading={busy} disabled={!f.categoryId || f.title.trim().length < 5 || f.description.trim().length < 20 || !payment} />
       <Button title={`‹ ${t('Back to calendar')}`} variant="ghost" onPress={onClose} />
     </Sheet>
   );

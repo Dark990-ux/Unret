@@ -11,7 +11,7 @@ import { useT } from '@/lib/i18n';
 
 const LABELS: Record<string, string> = {
   NEW_MATCHING_REQUEST: 'New matching request', NEW_OFFER: 'New offer', NEW_MESSAGE: 'New message', APPOINTMENT_APPROACHING: 'Appointment reminder',
-  JOB_STATUS_CHANGED: 'Job updates', REVIEW_RECEIVED: 'Review received', OFFER_REVISED: 'Offer revised', OFFER_REJECTED: 'Offer declined',
+  JOB_STATUS_CHANGED: 'Job updates', REVIEW_RECEIVED: 'Review received', PAYMENT_TO_CONFIRM: 'Payment to confirm', OFFER_REVISED: 'Offer revised', OFFER_REJECTED: 'Offer declined',
 };
 
 export default function Settings() {

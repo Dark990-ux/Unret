@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { ArrayMaxSize, IsArray, IsBoolean, IsDateString, IsEnum, IsIn, IsInt, IsLatitude, IsLongitude, IsOptional, IsString, Length, MaxLength, Min } from 'class-validator';
-import { ServiceMode, Urgency } from '@prisma/client';
+import { PaymentMethod, ServiceMode, Urgency } from '@prisma/client';
 import { PageQuery } from '../../common/pagination';
 
 export class CreateRequestDto {
@@ -20,6 +20,7 @@ export class CreateRequestDto {
   @ApiProperty({ required: false }) @IsOptional() @IsInt() @Min(0) budgetMinMinor?: number;
   @ApiProperty({ required: false }) @IsOptional() @IsInt() @Min(0) budgetMaxMinor?: number;
   @ApiProperty({ enum: Urgency }) @IsOptional() @IsEnum(Urgency) urgency?: Urgency;
+  @ApiProperty({ enum: ['TRANSFER', 'CASH', 'PLATFORM'], required: false, description: 'How the customer intends to pay' }) @IsOptional() @IsIn(['TRANSFER', 'CASH', 'PLATFORM']) paymentMethod?: PaymentMethod;
   @ApiProperty({ required: false, type: [String] }) @IsOptional() @IsArray() @ArrayMaxSize(10) @IsString({ each: true }) attachmentKeys?: string[];
   @ApiProperty({ required: false, description: 'Publish immediately (otherwise saved as draft)' }) @IsOptional() @IsBoolean() publish?: boolean;
 }
@@ -39,6 +40,7 @@ export class UpdateRequestDto {
   @IsOptional() @IsInt() @Min(0) budgetMinMinor?: number;
   @IsOptional() @IsInt() @Min(0) budgetMaxMinor?: number;
   @IsOptional() @IsEnum(Urgency) urgency?: Urgency;
+  @IsOptional() @IsIn(['TRANSFER', 'CASH', 'PLATFORM']) paymentMethod?: PaymentMethod;
 }
 
 export class ListRequestsQuery extends PageQuery {

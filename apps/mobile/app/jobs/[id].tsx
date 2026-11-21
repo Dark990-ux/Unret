@@ -2,6 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Linking, View } from 'react-native';
 import { DateTimeField } from '@/components/domain';
+import { PaymentPanel } from '@/components/payment';
 import { useTheme } from '@/components/theme';
 import { Alert, Avatar, Badge, Button, Card, Divider, Empty, Field, Input, KV, Loader, Row, Screen, Section, Segmented, Sheet, StarInput, StatusBadge, Text } from '@/components/ui';
 import { absUrl, api } from '@/lib/api';
@@ -12,6 +13,14 @@ import { useT } from '@/lib/i18n';
 import { useRealtime } from '@/lib/realtime';
 
 const STEPS = ['ACCEPTED', 'SCHEDULED', 'IN_PROGRESS', 'COMPLETED'];
+const STATUS_NAMES: Record<string, string> = { ACCEPTED: 'Accepted', SCHEDULED: 'Scheduled', IN_PROGRESS: 'In progress', COMPLETED: 'Completed', CANCELLED: 'Cancelled', DISPUTED: 'Disputed' };
+const EVENT_NAMES: Record<string, string> = {
+  CREATED: 'Job created from accepted offer', CONFIRMED: 'Completion confirmed', CHANGE_PROPOSED: 'Change proposed', CHANGE_ACCEPTED: 'Change accepted', CHANGE_REJECTED: 'Change declined',
+  DISPUTE_OPENED: 'Dispute opened', DISPUTE_RESOLVED: 'Dispute resolved', AUTO_COMPLETED: 'Completed automatically',
+  PAYMENT_SUCCEEDED: 'Paid through UNRET (held until the job is done)', PAYMENT_MARKED_PAID: 'Customer says the payment was sent',
+  PAYMENT_CONFIRMED: 'Professional confirmed receiving the payment', PAYOUT_SENT: 'Payment sent to the professional',
+  PAYMENT_REFUNDED: 'Payment refunded to the customer', PAYMENT_METHOD_CHANGED: 'Payment method changed', PAYMENT_RECORDED: 'Payment recorded',
+};
 type SheetKind = null | 'change' | 'cancel' | 'dispute' | 'review' | 'payment';
 
 export default function JobDetail() {
@@ -88,7 +97,7 @@ export default function JobDetail() {
           <KV label={t('Agreed price')} value={`${money(j.agreedPriceMinor, j.currency, intl)} (${j.priceType === 'FIXED' ? t('Fixed price') : t('Estimate')})`} />
           <KV label={t('Appointment')} value={j.scheduledStartAt ? dateTime(j.scheduledStartAt, intl) : t('To be agreed — propose a time')} />
           <KV label={t('Location')} value={j.request.serviceMode === 'REMOTE' ? t('Remote') : [j.request.addressText, j.request.city].filter(Boolean).join(', ')} />
-          <KV label={t('Payment')} value={j.paymentMethod === 'PLATFORM' ? t('Online through UNRET') : t('Directly to the professional')} />
+          
           <Divider />
           <Text variant="small">{t('Scope of work')}</Text>
           <Text>{j.scope}</Text>
@@ -97,19 +106,14 @@ export default function JobDetail() {
         </Card>
       </Section>
 
-      <Section title={t('Payments')}>
-        <Card>
-          {!j.payments.length ? <Text variant="small">{t('No payments recorded yet.')}</Text> : j.payments.map((p: any) => (
-            <Row key={p.id} style={{ justifyContent: 'space-between' }}><Text variant="small">{p.method === 'PLATFORM' ? t('Online payment') : t('Direct payment')} · {dateTime(p.createdAt, intl)}</Text><Row gap={6}><Text variant="label">{money(p.grossMinor, p.currency, intl)}</Text><StatusBadge status={p.status} /></Row></Row>
-          ))}
-          {(can('record_payment') || can('pay_online')) && <Button small variant="outline" title={t('Payment')} onPress={() => setSheet('payment')} />}
-        </Card>
+      <Section title={t('Payment')}>
+        <PaymentPanel job={j} onUpdated={setData} />
       </Section>
 
       {j.review && <Section title={t('Review')}><Card><Text style={{ color: th.star }}>{'★'.repeat(j.review.overall)}</Text>{j.review.text && <Text>{j.review.text}</Text>}<Badge tone="green">{t('Verified job')}</Badge></Card></Section>}
 
       <Section title={t('Timeline')}>
-        <Card>{j.events.map((e: any) => <View key={e.id}><Text variant="label">{e.toStatus ? `${t('Status')}: ${e.toStatus}` : e.type}</Text><Text variant="small">{dateTime(e.createdAt, intl)}{e.actor ? ` · ${e.actor.name}` : ''}{e.note ? ` — ${e.note}` : ''}</Text></View>)}</Card>
+        <Card>{j.events.map((e: any) => <View key={e.id}><Text variant="label">{e.toStatus ? `${t('Status')}: ${t(STATUS_NAMES[e.toStatus] ?? e.toStatus)}` : t(EVENT_NAMES[e.type] ?? e.type)}</Text><Text variant="small">{dateTime(e.createdAt, intl)}{e.actor ? ` · ${e.actor.name}` : ''}{e.note ? ` — ${e.note}` : ''}</Text></View>)}</Card>
       </Section>
 
       <Section title={t('Need help?')}>
@@ -121,7 +125,6 @@ export default function JobDetail() {
       <ReasonSheet open={sheet === 'cancel'} onClose={() => setSheet(null)} title={t('Cancel job')} warning={t('Cancelling affects your reliability on UNRET. The other party will be notified.')} label={t('Reason for cancelling')} onSubmit={(reason) => act(`/jobs/${id}/cancel`, { reason })} />
       <ReasonSheet open={sheet === 'dispute'} onClose={() => setSheet(null)} title={t('Open a dispute')} warning={t('Try to resolve the issue by message first. A dispute pauses the job until our team reviews it.')} label={t('What is the problem?')} onSubmit={(reason) => act(`/jobs/${id}/disputes`, { reason: reason.slice(0, 200), details: reason })} />
       <ReviewSheet open={sheet === 'review'} onClose={() => setSheet(null)} onSubmit={async (b) => { await api('/reviews', { body: { ...b, jobId: id } }); setSheet(null); reload(); }} />
-      <PaymentSheet open={sheet === 'payment'} onClose={() => setSheet(null)} job={j} onDone={() => { setSheet(null); reload(); }} />
     </Screen>
   );
 }
@@ -174,43 +177,6 @@ function ReviewSheet({ open, onClose, onSubmit }: { open: boolean; onClose: () =
       <Field label={t('Your feedback')} hint={t('Optional. Be honest and specific — it helps others.')}><Input multiline value={f.text} onChangeText={(text) => setF({ ...f, text })} /></Field>
       {err && <Alert>{err}</Alert>}
       <Button title={t('Publish review')} disabled={!f.overall || !f.communication || !f.quality || !f.punctuality} onPress={() => onSubmit({ ...f, text: f.text || undefined }).catch((e) => setErr(e.message))} />
-    </Sheet>
-  );
-}
-
-function PaymentSheet({ open, onClose, job, onDone }: { open: boolean; onClose: () => void; job: any; onDone: () => void }) {
-  const { t, intl } = useT();
-  const online = job.allowedActions.includes('pay_online') && !job.payments.some((p: any) => p.method === 'PLATFORM' && p.status === 'SUCCEEDED');
-  const [tab, setTab] = useState<'online' | 'direct'>(online ? 'online' : 'direct');
-  const [amount, setAmount] = useState(String(job.agreedPriceMinor / 100));
-  const [method, setMethod] = useState('bank_transfer');
-  const [checkout, setCheckout] = useState<any | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const run = async (fn: () => Promise<void>) => { setBusy(true); setErr(null); try { await fn(); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); } };
-  return (
-    <Sheet open={open} onClose={onClose} title={t('Payment')}>
-      {online && <Segmented value={tab} onChange={setTab} items={[{ value: 'online', label: t('Pay online') }, { value: 'direct', label: t('Record direct payment') }]} />}
-      {tab === 'online' ? (!checkout ? (
-        <>
-          <Text>{t('You will pay {amount} securely through our payment provider. UNRET never sees or stores your card details.', { amount: money(job.agreedPriceMinor, job.currency, intl) })}</Text>
-          <Button title={t('Continue to payment')} loading={busy} onPress={() => run(async () => setCheckout(await api(`/payments/jobs/${job.id}/checkout`, { method: 'POST' })))} />
-        </>
-      ) : (
-        <>
-          <Alert tone="amber">{t('Development mode: no real payment provider is configured. Simulate the result below.')}</Alert>
-          <Button title={t('Simulate successful payment')} loading={busy} onPress={() => run(async () => { await api(`/payments/${checkout.paymentId}/mock-confirm`, { body: { outcome: 'succeed' } }); onDone(); })} />
-          <Button variant="outline" title={t('Simulate failure')} onPress={() => run(async () => { await api(`/payments/${checkout.paymentId}/mock-confirm`, { body: { outcome: 'fail' } }); onDone(); })} />
-        </>
-      )) : (
-        <>
-          <Text variant="small">{t('Record a payment made outside UNRET. This is for your records only — UNRET does not process or guarantee direct payments.')}</Text>
-          <Field label={t('Amount ({cur})', { cur: job.currency })}><Input value={amount} onChangeText={setAmount} keyboardType="decimal-pad" /></Field>
-          <Segmented value={method} onChange={setMethod} items={[{ value: 'cash', label: t('Cash') }, { value: 'bank_transfer', label: t('Bank transfer') }, { value: 'card_terminal', label: t('Card (terminal)') }]} />
-          <Button title={t('Record payment')} loading={busy} onPress={() => run(async () => { await api(`/payments/jobs/${job.id}/direct`, { body: { amountMinor: majorToMinor(amount), method } }); onDone(); })} />
-        </>
-      )}
-      {err && <Alert>{err}</Alert>}
     </Sheet>
   );
 }
