@@ -28,7 +28,7 @@ export interface PaymentProvider {
   createIntent(input: CreateIntentInput): Promise<PaymentIntent>;
   refund(reference: string, amountMinor: number): Promise<{ ok: boolean }>;
   /** Transfers the professional's share of a held payment to their payout account. */
-  payout(input: { paymentReference: string; amountMinor: number; currency: string; professionalId: string }): Promise<{ reference: string }>;
+  payout(input: { paymentReference: string; amountMinor: number; currency: string; professionalId: string; iban: string; holderName: string }): Promise<{ reference: string }>;
   /** Verifies a webhook signature and returns a normalized event. */
   parseWebhook(rawBody: Buffer, signature: string | undefined): { reference: string; status: 'SUCCEEDED' | 'FAILED' } | null;
 }

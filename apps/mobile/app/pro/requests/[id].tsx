@@ -2,7 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Image, Pressable, View } from 'react-native';
 import { DateTimeField } from '@/components/domain';
-import { methodIcon, methodLabel } from '@/components/payment';
+import { DepositPicker, methodIcon, methodLabel } from '@/components/payment';
 import { useTheme } from '@/components/theme';
 import { Alert, Badge, Button, Card, Empty, Field, Input, KV, Loader, Row, Screen, Section, Segmented, StatusBadge, Text } from '@/components/ui';
 import { absUrl, api } from '@/lib/api';
@@ -66,7 +66,7 @@ function OfferForm({ requestId, currency, existing, onDone }: { requestId: strin
   const { t } = useT();
   const th = useTheme();
   const l = existing?.latest;
-  const [f, setF] = useState({ price: l ? String(l.priceMinor / 100) : '', priceType: l?.priceType ?? 'FIXED', description: l?.description ?? '', materialsIncluded: !!l?.materialsIncluded, materialsNote: l?.materialsNote ?? '', additionalExpenses: l?.additionalExpenses ?? '', message: '' });
+  const [f, setF] = useState({ price: l ? String(l.priceMinor / 100) : '', priceType: l?.priceType ?? 'FIXED', description: l?.description ?? '', materialsIncluded: !!l?.materialsIncluded, materialsNote: l?.materialsNote ?? '', additionalExpenses: l?.additionalExpenses ?? '', message: '', depositPercent: l?.depositPercent ? String(l.depositPercent) : '', depositNote: l?.depositNote ?? '' });
   const [start, setStart] = useState<Date | null>(l?.proposedStartAt ? new Date(l.proposedStartAt) : null);
   const [hours, setHours] = useState(l?.proposedStartAt && l?.proposedEndAt ? String((new Date(l.proposedEndAt).getTime() - new Date(l.proposedStartAt).getTime()) / 36e5) : '2');
   const [err, setErr] = useState<string | null>(null);
@@ -76,6 +76,7 @@ function OfferForm({ requestId, currency, existing, onDone }: { requestId: strin
     const body = {
       priceMinor: majorToMinor(f.price), priceType: f.priceType, description: f.description.trim(), materialsIncluded: f.materialsIncluded,
       materialsNote: f.materialsNote || undefined, additionalExpenses: f.additionalExpenses || undefined, message: f.message || undefined,
+      depositPercent: f.depositPercent ? Number(f.depositPercent) : undefined, depositNote: f.depositPercent && f.depositNote ? f.depositNote : undefined,
       proposedStartAt: start?.toISOString(), proposedEndAt: start ? new Date(start.getTime() + (Number(hours) || 1) * 36e5).toISOString() : undefined,
     };
     try {
@@ -96,6 +97,7 @@ function OfferForm({ requestId, currency, existing, onDone }: { requestId: strin
         </Pressable>
         <Field label={t('Materials notes')}><Input value={f.materialsNote} onChangeText={(materialsNote) => setF({ ...f, materialsNote })} placeholder={t('e.g. customer buys the sockets')} /></Field>
         <Field label={t('Additional expenses')}><Input value={f.additionalExpenses} onChangeText={(additionalExpenses) => setF({ ...f, additionalExpenses })} placeholder={t('e.g. transport 50 RON outside the city')} /></Field>
+        <DepositPicker value={f.depositPercent} note={f.depositNote} price={f.price} currency={currency} onChange={(depositPercent, depositNote) => setF({ ...f, depositPercent, depositNote })} />
         <Field label={t('Proposed appointment')}><DateTimeField value={start} onChange={setStart} placeholder={t('Time to be agreed')} /></Field>
         {start && <Field label={t('Duration (hours)')}><Input value={hours} onChangeText={setHours} keyboardType="decimal-pad" /></Field>}
         {!existing && <Field label={t('Message to the customer')}><Input multiline value={f.message} onChangeText={(message) => setF({ ...f, message })} style={{ minHeight: 70 }} /></Field>}

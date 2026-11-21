@@ -10,6 +10,7 @@ import { CategoriesService } from '../categories/categories.service';
 import { ConversationsService } from '../conversations/conversations.service';
 import { StorageService } from '../files/storage.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { decrypt } from '../../common/crypto';
 import { PayoutsService } from '../payments/payouts.service';
 import { ProfessionalsService } from '../professionals/professionals.service';
 import { DisputeDto, JobsQuery, ProposeChangeDto } from './jobs.dto';
@@ -18,21 +19,38 @@ type Tx = Prisma.TransactionClient;
 export type JobRole = 'customer' | 'professional' | 'admin';
 
 /**
- * Payment state of a job, derived from its method and payments:
- * unpaid → awaiting_confirmation (customer says paid) → paid (professional confirmed, transfer/cash)
- * unpaid → processing → held (paid through UNRET) → paid_out (sent to the professional) | refunded
+ * Payment state of a job, derived from its method, price, deposit and payments.
+ * unpaid → (deposit_paid) → paid | held → paid_out ; refunded when money went back.
+ * "awaiting" = the customer says they paid and the professional hasn't confirmed yet;
+ * "processing" = a card payment through UNRET is in progress.
  */
-export type PaymentState = 'unpaid' | 'awaiting_confirmation' | 'paid' | 'processing' | 'held' | 'paid_out' | 'refunded';
-export function paymentState(method: string, payments: { method: string; status: string; payoutStatus: string }[]): PaymentState {
+export type PaymentState = 'unpaid' | 'awaiting_confirmation' | 'deposit_paid' | 'paid' | 'processing' | 'held' | 'paid_out' | 'refunded';
+type Pay = { method: string; status: string; payoutStatus: string; kind?: string; grossMinor?: number; refundedMinor?: number };
+export interface PaymentSummary {
+  state: PaymentState; totalMinor: number; depositMinor: number; paidMinor: number; remainingMinor: number;
+  depositPaid: boolean; awaiting: boolean; processing: boolean;
+}
+const SETTLED = ['CONFIRMED', 'RECORDED', 'SUCCEEDED', 'PARTIALLY_REFUNDED'];
+export function paymentSummary(method: string, payments: Pay[], totalMinor: number, depositMinor = 0): PaymentSummary {
   const live = payments.filter((p) => p.status !== 'FAILED');
-  if (live.some((p) => p.status === 'CONFIRMED' || p.status === 'RECORDED')) return 'paid';
-  const platform = live.filter((p) => p.method === 'PLATFORM');
-  if (platform.some((p) => p.payoutStatus === 'SENT')) return 'paid_out';
-  if (platform.some((p) => ['SUCCEEDED', 'PARTIALLY_REFUNDED'].includes(p.status) && p.payoutStatus === 'HELD')) return 'held';
-  if (platform.some((p) => p.status === 'REFUNDED')) return 'refunded';
-  if (platform.some((p) => p.status === 'PENDING')) return 'processing';
-  if (live.some((p) => p.status === 'AWAITING_CONFIRMATION')) return 'awaiting_confirmation';
-  return 'unpaid';
+  const settled = live.filter((p) => SETTLED.includes(p.status));
+  const paidMinor = settled.reduce((s, p) => s + (p.grossMinor ?? totalMinor) - (p.refundedMinor ?? 0), 0);
+  const awaiting = live.some((p) => p.status === 'AWAITING_CONFIRMATION');
+  const processing = live.some((p) => p.status === 'PENDING');
+  const remainingMinor = Math.max(totalMinor - paidMinor, 0);
+  const platform = settled.filter((p) => p.method === 'PLATFORM');
+  let state: PaymentState;
+  if (paidMinor >= totalMinor && paidMinor > 0) state = platform.some((p) => p.payoutStatus === 'HELD') ? 'held' : platform.length ? 'paid_out' : 'paid';
+  else if (paidMinor > 0) state = 'deposit_paid';
+  else if (processing) state = 'processing';
+  else if (awaiting) state = 'awaiting_confirmation';
+  else if (live.some((p) => p.status === 'REFUNDED')) state = 'refunded';
+  else state = 'unpaid';
+  return { state, totalMinor, depositMinor, paidMinor, remainingMinor, depositPaid: depositMinor > 0 && paidMinor >= depositMinor, awaiting, processing };
+}
+/** Backwards-compatible helper used by lists. */
+export function paymentState(method: string, payments: Pay[], totalMinor = 0, depositMinor = 0): PaymentState {
+  return paymentSummary(method, payments, totalMinor, depositMinor).state;
 }
 
 /** Days after the professional marks a job complete before it auto-completes without customer response. */
@@ -97,7 +115,7 @@ export class JobsService {
           professional: { select: { id: true, businessName: true, user: { select: { name: true } } } },
           review: { select: { id: true, overall: true } },
           changes: { where: { status: 'PROPOSED' }, select: { id: true } },
-          payments: { select: { method: true, status: true, payoutStatus: true } },
+          payments: { select: { method: true, status: true, payoutStatus: true, kind: true, grossMinor: true, refundedMinor: true } },
         },
       }),
       this.prisma.job.count({ where }),
@@ -110,7 +128,7 @@ export class JobsService {
         scheduledStartAt: j.scheduledStartAt, scheduledEndAt: j.scheduledEndAt, createdAt: j.createdAt, completedAt: j.completedAt,
         customerName: j.customer.name, professionalName: j.professional.businessName ?? j.professional.user.name, professionalId: j.professional.id,
         reviewed: !!j.review, pendingChanges: j.changes.length,
-        paymentMethod: j.paymentMethod, paymentState: paymentState(j.paymentMethod, j.payments),
+        paymentMethod: j.paymentMethod, paymentState: paymentState(j.paymentMethod, j.payments, j.agreedPriceMinor, j.depositMinor),
         awaitingMyConfirmation: j.status === 'IN_PROGRESS' && (as === 'customer' ? !!j.professionalConfirmedAt && !j.customerConfirmedAt : !j.professionalConfirmedAt),
       })),
       total, q,
@@ -138,6 +156,7 @@ export class JobsService {
       },
     });
     const locale = (await this.prisma.user.findUnique({ where: { id: user.id }, select: { preferredLanguage: true } }))?.preferredLanguage ?? 'ro';
+    const summary = paymentSummary(j.paymentMethod, j.payments, j.agreedPriceMinor, j.depositMinor);
     const assignee = j.assignedMemberUserId ? j.company?.members.find((m) => m.userId === j.assignedMemberUserId)?.user ?? null : null;
     return {
       ...j,
@@ -150,12 +169,21 @@ export class JobsService {
       conversations: undefined,
       assignee,
       company: role === 'professional' ? j.company : j.company ? { id: j.company.id, displayName: j.company.displayName } : null,
-      paymentState: paymentState(j.paymentMethod, j.payments),
-      allowedActions: this.allowedActions({ ...j, paymentState: paymentState(j.paymentMethod, j.payments) }, role, user.id),
+      paymentState: summary.state,
+      payment: summary,
+      payTo: role === 'customer' && ['TRANSFER', 'DIRECT'].includes(j.paymentMethod) && summary.remainingMinor > 0 ? await this.payTo(j.professionalId) : null,
+      allowedActions: this.allowedActions({ ...j, summary }, role, user.id),
     };
   }
 
-  private allowedActions(j: { status: JobStatus; customerConfirmedAt: Date | null; professionalConfirmedAt: Date | null; review: unknown; completedAt: Date | null; paymentMethod: string; paymentState: PaymentState }, role: JobRole, _uid: string) {
+  /** Bank details shown to the hired customer for a transfer, if the professional allows it. */
+  private async payTo(professionalId: string) {
+    const acc = await this.prisma.payoutAccount.findUnique({ where: { professionalId } });
+    if (!acc || !acc.showToCustomers) return null;
+    try { return { holderName: acc.holderName, iban: decrypt(acc.ibanEncrypted) }; } catch { return null; }
+  }
+
+  private allowedActions(j: { status: JobStatus; customerConfirmedAt: Date | null; professionalConfirmedAt: Date | null; review: unknown; completedAt: Date | null; paymentMethod: string; summary: PaymentSummary }, role: JobRole, _uid: string) {
     const a: string[] = [];
     const open = ['ACCEPTED', 'SCHEDULED', 'IN_PROGRESS'].includes(j.status);
     if (role === 'professional' && ['ACCEPTED', 'SCHEDULED'].includes(j.status)) a.push('start');
@@ -168,11 +196,15 @@ export class JobsService {
     if (j.status === 'COMPLETED' && role === 'customer' && !j.review) a.push('review');
     const payable = ['ACCEPTED', 'SCHEDULED', 'IN_PROGRESS', 'COMPLETED'].includes(j.status);
     const direct = j.paymentMethod !== 'PLATFORM';
-    const unpaid = j.paymentState === 'unpaid';
-    if (payable && role === 'customer' && unpaid) a.push('change_payment_method');
-    if (payable && role === 'customer' && direct && j.paymentMethod !== 'CASH' && unpaid) a.push('mark_paid');
-    if ((payable || j.status === 'DISPUTED') && role === 'professional' && direct && (unpaid || j.paymentState === 'awaiting_confirmation')) a.push('confirm_payment');
-    if (payable && role === 'customer' && !direct && (unpaid || j.paymentState === 'processing')) a.push('pay_online');
+    const p = j.summary;
+    const nothingYet = p.paidMinor === 0 && !p.awaiting && !p.processing;
+    if (payable && role === 'customer' && nothingYet) a.push('change_payment_method');
+    if (payable && role === 'customer' && direct && j.paymentMethod !== 'CASH' && p.remainingMinor > 0 && !p.awaiting) a.push('mark_paid');
+    if ((payable || j.status === 'DISPUTED') && role === 'professional' && direct && p.remainingMinor > 0) a.push('confirm_payment');
+    if (payable && role === 'customer' && !direct && p.remainingMinor > 0 && !p.processing) {
+      if (p.depositMinor > 0 && p.paidMinor === 0) a.push('pay_deposit');
+      a.push('pay_online');
+    }
     return a;
   }
 
@@ -187,6 +219,7 @@ export class JobsService {
     const { job, role, otherUserId } = await this.access(user, jobId);
     if (role !== 'professional') throw new ForbiddenException('Only the professional can start the job');
     await this.prisma.$transaction((tx) => this.transition(tx, jobId, job.status, 'IN_PROGRESS', user.id));
+    await this.payouts.releaseDeposit(jobId);
     await this.notifyStatus(otherUserId, jobId, job.request.title, 'Work has started');
     return this.detail(user, jobId);
   }
@@ -316,7 +349,10 @@ export class JobsService {
       await tx.jobEvent.create({ data: { jobId, actorId: user.id, type: decision === 'accept' ? 'CHANGE_ACCEPTED' : 'CHANGE_REJECTED' } });
       if (decision === 'accept') {
         const data: Prisma.JobUpdateInput = {};
-        if (change.priceMinor !== null) data.agreedPriceMinor = change.priceMinor;
+        if (change.priceMinor !== null) {
+          data.agreedPriceMinor = change.priceMinor;
+          if (job.depositMinor > 0 && job.agreedPriceMinor > 0) data.depositMinor = Math.min(change.priceMinor, Math.round((job.depositMinor * change.priceMinor) / job.agreedPriceMinor));
+        }
         if (change.scope) data.scope = change.scope;
         if (change.scheduledStartAt && change.scheduledEndAt) {
           await this.availability.reserve(tx, job.professionalId, jobId, change.scheduledStartAt, change.scheduledEndAt);

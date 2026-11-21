@@ -45,6 +45,7 @@ export class OffersService {
       proposedStartAt: t.proposedStartAt ? new Date(t.proposedStartAt) : null,
       proposedEndAt: t.proposedEndAt ? new Date(t.proposedEndAt) : null,
       message: t.message, createdById,
+      depositPercent: t.depositPercent ?? null, depositNote: t.depositPercent ? t.depositNote ?? null : null,
     };
   }
 
@@ -160,6 +161,7 @@ export class OffersService {
           requestId: offer.requestId, offerId, acceptedRevisionId: rev.id, customerId: user.id, professionalId: offer.professionalId,
           companyId: offer.professional.companyId, agreedPriceMinor: rev.priceMinor, currency: rev.currency, priceType: rev.priceType,
           scope: rev.description, paymentMethod: dto.paymentMethod ?? offer.request.paymentMethod ?? 'TRANSFER',
+          depositMinor: rev.depositPercent ? Math.round((rev.priceMinor * rev.depositPercent) / 100) : 0, depositNote: rev.depositNote,
           status: scheduled ? 'SCHEDULED' : 'ACCEPTED',
           scheduledStartAt: rev.proposedStartAt, scheduledEndAt: rev.proposedEndAt,
         },

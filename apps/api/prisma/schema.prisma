@@ -117,6 +117,12 @@ enum PaymentStatus {
   PARTIALLY_REFUNDED
 }
 
+enum PaymentKind {
+  FULL
+  DEPOSIT // advance requested by the professional in the quote
+  BALANCE // what is left after the deposit
+}
+
 enum PayoutStatus {
   NOT_APPLICABLE // direct payments: the money went straight to the professional
   HELD // paid through UNRET, waiting for the job to be completed
@@ -310,6 +316,7 @@ model ProfessionalProfile {
   availabilityRules AvailabilityRule[]
   availabilityBlock AvailabilityBlock[]
   bookingPeriods    AvailabilityPeriod[]
+  payoutAccount     PayoutAccount?
   appointments      Appointment[]
   verifications     Verification[]
   matches           RequestMatch[]
@@ -476,6 +483,23 @@ model AvailabilityBlock {
   @@index([professionalId, startsAt])
 }
 
+/// Where payments made through UNRET are paid out. The IBAN is stored encrypted.
+model PayoutAccount {
+  id              String   @id @default(uuid())
+  professionalId  String   @unique
+  holderName      String
+  ibanEncrypted   String
+  ibanLast4       String
+  countryCode     String   @db.Char(2)
+  bankCode        String?
+  /// Show the full IBAN to the hired customer when they pay by bank transfer.
+  showToCustomers Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  professional ProfessionalProfile @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+}
+
 /// Date ranges a professional opens for bookings. When any exist, only these days are bookable
 /// (still within weekly working hours).
 model AvailabilityPeriod {
@@ -631,6 +655,9 @@ model OfferRevision {
   proposedStartAt    DateTime?
   proposedEndAt      DateTime?
   message            String?
+  /// Deposit the professional asks for, as a percentage of the price (10–50), e.g. for materials.
+  depositPercent     Int?
+  depositNote        String?
   createdById        String
   createdAt          DateTime       @default(now())
 
@@ -659,6 +686,9 @@ model Job {
   scope                   String
   status                  JobStatus      @default(ACCEPTED)
   paymentMethod           PaymentMethod  @default(DIRECT)
+  /// Deposit to pay before the work starts (0 = none), from the accepted quote.
+  depositMinor            Int            @default(0)
+  depositNote             String?
   scheduledStartAt        DateTime?
   scheduledEndAt          DateTime?
   customerConfirmedAt     DateTime?
@@ -863,6 +893,7 @@ model Payment {
   refundedMinor        Int           @default(0)
   currency             String        @db.Char(3)
   status               PaymentStatus
+  kind                 PaymentKind   @default(FULL)
   paymentMethodNote    String? // e.g. "cash", "bank transfer", "card"
   /// Customer said they paid (transfer), before the professional confirmed.
   customerMarkedPaidAt DateTime?

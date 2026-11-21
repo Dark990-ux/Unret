@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsBoolean, IsDateString, IsEnum, IsIn, IsInt, IsOptional, IsString, Length, MaxLength, Min } from 'class-validator';
+import { IsBoolean, IsDateString, IsEnum, IsIn, IsInt, IsOptional, IsString, Length, Max, MaxLength, Min } from 'class-validator';
 import { OfferPriceType, PaymentMethod } from '@prisma/client';
 
 export class OfferTermsDto {
@@ -12,6 +12,9 @@ export class OfferTermsDto {
   @ApiProperty({ required: false }) @IsOptional() @IsDateString() proposedStartAt?: string;
   @ApiProperty({ required: false }) @IsOptional() @IsDateString() proposedEndAt?: string;
   @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(2000) message?: string;
+  @ApiProperty({ required: false, description: 'Deposit to pay before the work starts, as % of the price (10–50)' })
+  @IsOptional() @IsInt() @Min(10) @Max(50) depositPercent?: number;
+  @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(200) depositNote?: string;
 }
 
 export class CreateOfferDto extends OfferTermsDto {

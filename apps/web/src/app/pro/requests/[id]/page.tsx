@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { CalendarDays, MapPin, MessageSquare, ThumbsDown, Wifi } from 'lucide-react';
 import { Alert, Badge, Button, Card, Checkbox, Empty, Field, Input, KeyValue, PageHeader, PageLoader, Select, StatusBadge, Textarea } from '@/components/ui-exports';
 import { ProShell } from '@/components/shell';
-import { methodIcon, methodLabel } from '@/components/payment';
+import { DepositPicker, methodIcon, methodLabel } from '@/components/payment';
 import { api } from '@/lib/api';
 import { date, dateTime, fromLocalInput, majorToMinor, money, period, toLocalInput } from '@/lib/format';
 import { useApi } from '@/lib/hooks';
@@ -102,6 +102,7 @@ function OfferForm({ requestId, currency, existing, onDone, onCancel }: { reques
     price: l ? String(l.priceMinor / 100) : '', priceType: l?.priceType ?? 'FIXED', description: l?.description ?? '', materialsIncluded: l?.materialsIncluded ?? false,
     materialsNote: l?.materialsNote ?? '', additionalExpenses: l?.additionalExpenses ?? '', start: toLocalInput(l?.proposedStartAt), end: toLocalInput(l?.proposedEndAt),
     expiresAt: existing ? existing.offer.expiresAt.slice(0, 10) : defaultExpiry, message: '',
+    depositPercent: l?.depositPercent ? String(l.depositPercent) : '', depositNote: l?.depositNote ?? '',
   });
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -114,6 +115,7 @@ function OfferForm({ requestId, currency, existing, onDone, onCancel }: { reques
       materialsNote: f.materialsNote || undefined, additionalExpenses: f.additionalExpenses || undefined,
       proposedStartAt: fromLocalInput(f.start), proposedEndAt: fromLocalInput(f.end), message: f.message || undefined,
       expiresAt: new Date(f.expiresAt + 'T23:59:00').toISOString(),
+      depositPercent: f.depositPercent ? Number(f.depositPercent) : undefined, depositNote: f.depositPercent && f.depositNote ? f.depositNote : undefined,
     };
     try {
       if (existing) await api(`/offers/${existing.offer.id}/revise`, { body });
@@ -140,6 +142,7 @@ function OfferForm({ requestId, currency, existing, onDone, onCancel }: { reques
         <Checkbox label={t('Materials included in the price')} checked={f.materialsIncluded} onChange={(e) => setF({ ...f, materialsIncluded: e.target.checked })} />
         <Field label={t('Materials notes')}><Input value={f.materialsNote} onChange={(e) => setF({ ...f, materialsNote: e.target.value })} placeholder={t('e.g. customer buys the sockets')} /></Field>
         <Field label={t('Additional expenses')}><Input value={f.additionalExpenses} onChange={(e) => setF({ ...f, additionalExpenses: e.target.value })} placeholder={t('e.g. transport 50 RON outside the city')} /></Field>
+        <DepositPicker value={f.depositPercent} note={f.depositNote} price={f.price} currency={currency} onChange={(depositPercent, depositNote) => setF({ ...f, depositPercent, depositNote })} />
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label={t('Proposed start')}><Input type="datetime-local" value={f.start} onChange={(e) => setF({ ...f, start: e.target.value })} /></Field>
           <Field label={t('Proposed end')}><Input type="datetime-local" value={f.end} onChange={(e) => setF({ ...f, end: e.target.value })} /></Field>

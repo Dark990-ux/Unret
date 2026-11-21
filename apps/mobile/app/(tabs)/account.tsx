@@ -49,6 +49,7 @@ export default function Account() {
           </Row>
           <Divider />
           <Button title={t('Calendar & availability')} variant="outline" onPress={() => router.push('/pro/availability')} />
+          <Button title={`🏦 ${t('Payout account (IBAN)')}`} variant="outline" onPress={() => router.push('/pro/payout')} />
           <Button title={t('View public profile')} variant="ghost" onPress={() => router.push(`/pros/${me.professional!.id}`)} />
         </Card>
       )}

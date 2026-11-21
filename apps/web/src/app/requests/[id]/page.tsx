@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { CalendarDays, Check, History, Inbox, MapPin, MessageSquare, Package, Timer } from 'lucide-react';
 import { Rating, VerificationBadges } from '@/components/domain';
-import { Method, methodIcon, methodLabel, PaymentMethodPicker } from '@/components/payment';
+import { DepositLine, Method, methodIcon, methodLabel, PaymentMethodPicker } from '@/components/payment';
 import { Alert, Avatar, Badge, Button, Card, Container, Empty, Field, KeyValue, Modal, PageHeader, PageLoader, Select, StatusBadge, Textarea } from '@/components/ui-exports';
 import { RequireAuth } from '@/components/shell';
 import { api } from '@/lib/api';
@@ -96,6 +96,7 @@ function RequestDetail() {
                   <p className="mt-4 whitespace-pre-line text-sm text-ink-soft dark:text-white/75">{l.description}</p>
                   <div className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
                     <div className="flex items-start gap-2"><Package className="mt-0.5 h-4 w-4 text-ink-muted" /><span>{l.materialsIncluded ? t('Materials included') : t('Materials not included')}{l.materialsNote ? ` — ${l.materialsNote}` : ''}</span></div>
+                    {l.depositPercent ? <div className="sm:col-span-2"><DepositLine priceMinor={l.priceMinor} percent={l.depositPercent} note={l.depositNote} currency={l.currency} /></div> : null}
                     {l.additionalExpenses && <div className="flex items-start gap-2"><span className="text-ink-muted">+</span><span>{t('Additional costs')}: {l.additionalExpenses}</span></div>}
                     <div className="flex items-start gap-2"><CalendarDays className="mt-0.5 h-4 w-4 text-ink-muted" /><span>{l.proposedStartAt ? t('Proposed: {date}', { date: dateTime(l.proposedStartAt, intl) }) : p.nextAvailable?.length ? t('Next free: {date}', { date: dateTime(p.nextAvailable[0], intl) }) : t('Time to be agreed')}</span></div>
                     <div className="flex items-start gap-2"><Timer className="mt-0.5 h-4 w-4 text-ink-muted" /><span>{t('Valid until {date}', { date: date(o.expiresAt, intl) })}</span></div>
@@ -142,6 +143,7 @@ function RequestDetail() {
         {accepting && (
           <div className="space-y-4">
             <Alert tone="blue">{t('Accepting creates a job agreement for {price} with {name}. Other offers will be declined. Any later change to price or scope must be approved by both of you.', { price: money(accepting.latest.priceMinor, accepting.latest.currency, intl), name: accepting.professional.displayName })}</Alert>
+            {accepting.latest.depositPercent ? <DepositLine priceMinor={accepting.latest.priceMinor} percent={accepting.latest.depositPercent} note={accepting.latest.depositNote} currency={accepting.latest.currency} /> : null}
             <Field label={t('How will you pay?')}><PaymentMethodPicker name="accept-payment" value={payment ?? r.paymentMethod ?? null} onChange={setPayment} /></Field>
             {(payment ?? r.paymentMethod) !== 'PLATFORM' && <p className="text-xs text-ink-muted">{t('UNRET records the agreed price and payment method but does not process or guarantee direct payments.')}</p>}
             <div className="flex justify-end gap-2">

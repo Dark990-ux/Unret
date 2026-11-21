@@ -2,7 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Alert as RNAlert, View } from 'react-native';
 import { Rating, VerificationBadges } from '@/components/domain';
-import { Method, methodIcon, methodLabel, PaymentMethodPicker } from '@/components/payment';
+import { Method, methodIcon, methodLabel, PaymentMethodPicker, DepositLine } from '@/components/payment';
 import { Alert, Avatar, Badge, Button, Card, Divider, Empty, Field, Input, KV, Loader, Row, Screen, Section, Segmented, Sheet, StatusBadge, Text } from '@/components/ui';
 import { absUrl, api } from '@/lib/api';
 import { date, dateTime, money, period } from '@/lib/format';
@@ -67,6 +67,7 @@ export default function RequestDetail() {
                 <Text>{l.description}</Text>
                 <Text variant="small">📦 {l.materialsIncluded ? t('Materials included') : t('Materials not included')}{l.materialsNote ? ` — ${l.materialsNote}` : ''}</Text>
                 {l.additionalExpenses && <Text variant="small">+ {t('Additional costs')}: {l.additionalExpenses}</Text>}
+                <DepositLine priceMinor={l.priceMinor} percent={l.depositPercent} note={l.depositNote} currency={l.currency} />
                 <Text variant="small">📅 {l.proposedStartAt ? t('Proposed: {date}', { date: dateTime(l.proposedStartAt, intl) }) : p.nextAvailable?.length ? t('Next free: {date}', { date: dateTime(p.nextAvailable[0], intl) }) : t('Time to be agreed')}</Text>
                 <Text variant="small">⏱ {t('Valid until {date}', { date: date(o.expiresAt, intl) })}{o.currentRevision > 1 ? ` · ${t('Revised (v{n})', { n: o.currentRevision })}` : ''}</Text>
                 {l.message && <Text variant="small">“{l.message}”</Text>}
@@ -97,6 +98,7 @@ export default function RequestDetail() {
       <Sheet open={!!accepting} onClose={() => setAccepting(null)} title={t('Accept this offer?')}>
         {accepting && (<>
           <Alert tone="blue">{t('Accepting creates a job agreement for {price} with {name}. Other offers will be declined. Any later change to price or scope must be approved by both of you.', { price: money(accepting.latest.priceMinor, accepting.latest.currency, intl), name: accepting.professional.displayName })}</Alert>
+          <DepositLine priceMinor={accepting.latest.priceMinor} percent={accepting.latest.depositPercent} note={accepting.latest.depositNote} currency={accepting.latest.currency} />
           <Field label={t('How will you pay?')}><PaymentMethodPicker value={payment ?? r.paymentMethod ?? null} onChange={setPayment} /></Field>
           {(payment ?? r.paymentMethod) !== 'PLATFORM' && <Text variant="small">{t('UNRET records the agreed price and payment method but does not process or guarantee direct payments.')}</Text>}
           <Button title={t('Accept offer')} loading={busy} onPress={async () => {

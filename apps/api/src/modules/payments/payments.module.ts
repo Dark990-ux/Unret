@@ -1,23 +1,36 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Get, Global, Headers, HttpCode, Inject, Injectable, Module, NotFoundException, Param, Patch, Post, Query, Req } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Global, Headers, HttpCode, Inject, Injectable, Module, NotFoundException, Param, Patch, Post, Put, Query, Req } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { PaymentMethod } from '@prisma/client';
-import { IsEnum, IsInt, IsOptional, IsString, MaxLength, Min } from 'class-validator';
-import { formatMoney } from '@unret/shared';
+import { IsBoolean, IsEnum, IsIn, IsInt, IsOptional, IsString, Length, MaxLength, Min } from 'class-validator';
+import { checkIban, formatMoney, maskIban } from '@unret/shared';
+import { decrypt, encrypt } from '../../common/crypto';
+import { requirePro } from '../../common/guards';
 import { AuditService } from '../../common/audit.service';
-import { AuthUser, CurrentUser, Public, Roles } from '../../common/decorators';
+import { AuthUser, ClientIp, CurrentUser, Public, Roles } from '../../common/decorators';
 import { PageQuery, pageResult, paginate } from '../../common/pagination';
 import { PrismaService } from '../../common/prisma.service';
-import { JobsService } from '../jobs/jobs.service';
+import { JobsService, paymentSummary } from '../jobs/jobs.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PAYMENT_PROVIDER, PayoutsService } from './payouts.service';
 import { MockPaymentProvider, PaymentProvider } from './provider';
 
+type Part = 'deposit' | 'balance' | 'full';
+class PartDto {
+  @IsOptional() @IsIn(['deposit', 'balance', 'full']) part?: Part;
+}
+class PayoutAccountDto {
+  @IsString() @Length(3, 120) holderName: string;
+  @IsOptional() @IsString() @Length(15, 42) iban?: string;
+  @IsOptional() @IsBoolean() showToCustomers?: boolean;
+}
 class ConfirmDto {
+  @IsOptional() @IsIn(['deposit', 'balance', 'full']) part?: Part;
   @IsOptional() @IsInt() @Min(0) amountMinor?: number;
   @IsOptional() @IsString() @MaxLength(300) note?: string;
 }
 class MarkPaidDto {
+  @IsOptional() @IsIn(['deposit', 'balance', 'full']) part?: Part;
   @IsOptional() @IsString() @MaxLength(300) note?: string;
 }
 class MethodDto {
@@ -41,8 +54,54 @@ export class PaymentsService {
     @Inject(PAYMENT_PROVIDER) private provider: PaymentProvider,
   ) {}
 
-  private alreadySettled(jobId: string) {
-    return this.prisma.payment.findFirst({ where: { jobId, OR: [{ status: { in: ['CONFIRMED', 'RECORDED', 'SUCCEEDED'] } }] } });
+  private async summaryFor(job: { id: string; paymentMethod: string; agreedPriceMinor: number; depositMinor: number }) {
+    const payments = await this.prisma.payment.findMany({ where: { jobId: job.id } });
+    return paymentSummary(job.paymentMethod, payments, job.agreedPriceMinor, job.depositMinor);
+  }
+
+  /** Amount and kind for the next payment: the deposit first (if any), then whatever remains. */
+  private nextCharge(s: ReturnType<typeof paymentSummary>, part: Part | undefined): { amount: number; kind: 'FULL' | 'DEPOSIT' | 'BALANCE' } {
+    if (s.remainingMinor <= 0) throw new BadRequestException('This job is already paid');
+    if (part === 'deposit') {
+      if (s.depositMinor <= 0) throw new BadRequestException('No deposit was requested for this job');
+      if (s.paidMinor > 0) throw new BadRequestException('The deposit is already paid');
+      return { amount: s.depositMinor, kind: 'DEPOSIT' };
+    }
+    return { amount: s.remainingMinor, kind: s.paidMinor > 0 ? 'BALANCE' : 'FULL' };
+  }
+
+  // ── Payout account (IBAN) ──
+
+  async getPayoutAccount(user: AuthUser) {
+    const acc = await this.prisma.payoutAccount.findUnique({ where: { professionalId: requirePro(user) } });
+    if (!acc) return null;
+    const waiting = await this.prisma.payment.aggregate({ where: { job: { professionalId: user.professionalId! }, method: 'PLATFORM', payoutStatus: 'HELD', status: { in: ['SUCCEEDED', 'PARTIALLY_REFUNDED'] } }, _sum: { payoutMinor: true } });
+    return { holderName: acc.holderName, ibanMasked: maskIban(acc.countryCode, acc.ibanLast4), countryCode: acc.countryCode, bankCode: acc.bankCode, showToCustomers: acc.showToCustomers, updatedAt: acc.updatedAt, heldMinor: waiting._sum.payoutMinor ?? 0 };
+  }
+
+  async setPayoutAccount(user: AuthUser, dto: PayoutAccountDto, ip?: string) {
+    const pid = requirePro(user);
+    if (!dto.iban) {
+      // Only the name or visibility changes; keep the stored IBAN.
+      const existing = await this.prisma.payoutAccount.findUnique({ where: { professionalId: pid } });
+      if (!existing) throw new BadRequestException('Enter your IBAN');
+      await this.prisma.payoutAccount.update({ where: { professionalId: pid }, data: { holderName: dto.holderName.trim(), showToCustomers: dto.showToCustomers ?? existing.showToCustomers } });
+      return this.getPayoutAccount(user);
+    }
+    const check = checkIban(dto.iban);
+    if (!check.valid) throw new BadRequestException(check.reason);
+    const data = { holderName: dto.holderName.trim(), ibanEncrypted: encrypt(check.iban), ibanLast4: check.iban.slice(-4), countryCode: check.country, bankCode: check.bankCode, showToCustomers: dto.showToCustomers ?? true };
+    await this.prisma.payoutAccount.upsert({ where: { professionalId: pid }, create: { professionalId: pid, ...data }, update: data });
+    await this.audit.log({ actorId: user.id, action: 'payout_account.set', entityType: 'PayoutAccount', entityId: pid, metadata: { last4: data.ibanLast4, country: data.countryCode }, ip });
+    await this.payouts.releaseWaiting(pid);
+    return this.getPayoutAccount(user);
+  }
+
+  async removePayoutAccount(user: AuthUser) {
+    const pid = requirePro(user);
+    await this.prisma.payoutAccount.deleteMany({ where: { professionalId: pid } });
+    await this.audit.log({ actorId: user.id, action: 'payout_account.remove', entityType: 'PayoutAccount', entityId: pid });
+    return { ok: true };
   }
 
   /** Customer changes how they will pay, as long as nothing has been paid yet. */
@@ -51,7 +110,7 @@ export class PaymentsService {
     if (role !== 'customer') throw new ForbiddenException('Only the customer can change the payment method');
     if (method === 'DIRECT') throw new BadRequestException('Choose card / bank transfer, cash or payment through UNRET');
     if (!PAYABLE_JOB.includes(job.status)) throw new BadRequestException('This job can no longer be paid');
-    if (await this.alreadySettled(jobId)) throw new BadRequestException('This job is already paid');
+    if ((await this.summaryFor(job)).paidMinor > 0) throw new BadRequestException('Part of this job is already paid, so the method can no longer change');
     await this.prisma.$transaction([
       this.prisma.job.update({ where: { id: jobId }, data: { paymentMethod: method } }),
       this.prisma.payment.updateMany({ where: { jobId, status: { in: ['AWAITING_CONFIRMATION', 'PENDING'] } }, data: { status: 'FAILED' } }),
@@ -67,17 +126,18 @@ export class PaymentsService {
     if (role !== 'customer') throw new ForbiddenException();
     if (!['TRANSFER', 'CASH', 'DIRECT'].includes(job.paymentMethod)) throw new BadRequestException('This job is paid through UNRET');
     if (!PAYABLE_JOB.includes(job.status)) throw new BadRequestException('This job can no longer be paid');
-    if (await this.alreadySettled(jobId)) throw new BadRequestException('The professional already confirmed this payment');
+    const s = await this.summaryFor(job);
+    const { amount, kind } = this.nextCharge(s, dto.part ?? (s.depositMinor > 0 && s.paidMinor === 0 ? 'deposit' : 'full'));
     const existing = await this.prisma.payment.findFirst({ where: { jobId, status: 'AWAITING_CONFIRMATION' } });
     if (!existing) {
       await this.prisma.payment.create({
-        data: { jobId, method: job.paymentMethod, grossMinor: job.agreedPriceMinor, payoutMinor: job.agreedPriceMinor, currency: job.currency, status: 'AWAITING_CONFIRMATION', customerMarkedPaidAt: new Date(), paymentMethodNote: dto.note || null },
+        data: { jobId, method: job.paymentMethod, kind, grossMinor: amount, payoutMinor: amount, currency: job.currency, status: 'AWAITING_CONFIRMATION', customerMarkedPaidAt: new Date(), paymentMethodNote: dto.note || null },
       });
-      await this.prisma.jobEvent.create({ data: { jobId, actorId: user.id, type: 'PAYMENT_MARKED_PAID', note: dto.note } });
+      await this.prisma.jobEvent.create({ data: { jobId, actorId: user.id, type: 'PAYMENT_MARKED_PAID', note: `${formatMoney(amount, job.currency)}${kind === 'DEPOSIT' ? ' · deposit' : ''}` } });
     }
     await this.notifications.notify({
       userId: otherUserId, type: 'PAYMENT_TO_CONFIRM', title: 'Please confirm the payment',
-      body: `The customer says they paid ${formatMoney(job.agreedPriceMinor, job.currency)} for "${job.request.title}". Confirm in the app once you receive it.`,
+      body: `The customer says they paid ${formatMoney(amount, job.currency)}${kind === 'DEPOSIT' ? ' (deposit)' : ''} for "${job.request.title}". Confirm in the app once you receive it.`,
       data: { jobId, url: `/jobs/${jobId}` },
     });
     return this.jobs.detail(user, jobId);
@@ -89,11 +149,15 @@ export class PaymentsService {
     if (role !== 'professional') throw new ForbiddenException('Only the professional can confirm receiving the payment');
     if (job.paymentMethod === 'PLATFORM') throw new BadRequestException('Payments through UNRET are confirmed automatically');
     if (!PAYABLE_JOB.includes(job.status) && job.status !== 'DISPUTED') throw new BadRequestException('This job can no longer be paid');
-    if (await this.alreadySettled(jobId)) throw new BadRequestException('This payment is already confirmed');
-    const amount = dto.amountMinor ?? job.agreedPriceMinor;
-    const now = new Date();
+    const s = await this.summaryFor(job);
     const awaiting = await this.prisma.payment.findFirst({ where: { jobId, status: 'AWAITING_CONFIRMATION' } });
-    const data = { status: 'CONFIRMED' as const, grossMinor: amount, payoutMinor: amount, confirmedById: user.id, confirmedAt: now, payoutStatus: 'NOT_APPLICABLE' as const };
+    const next = this.nextCharge(s, dto.part ?? (awaiting ? (awaiting.kind === 'DEPOSIT' ? 'deposit' : 'full') : undefined));
+    const amount = dto.amountMinor ?? awaiting?.grossMinor ?? next.amount;
+    if (amount <= 0) throw new BadRequestException('Enter the amount you received');
+    if (amount > s.remainingMinor) throw new BadRequestException(`The amount left to pay is ${formatMoney(s.remainingMinor, job.currency)}`);
+    const kind = s.paidMinor > 0 ? 'BALANCE' : amount < s.totalMinor ? 'DEPOSIT' : 'FULL';
+    const now = new Date();
+    const data = { status: 'CONFIRMED' as const, kind: kind as 'FULL' | 'DEPOSIT' | 'BALANCE', grossMinor: amount, payoutMinor: amount, confirmedById: user.id, confirmedAt: now, payoutStatus: 'NOT_APPLICABLE' as const };
     const p = awaiting
       ? await this.prisma.payment.update({ where: { id: awaiting.id }, data: { ...data, paymentMethodNote: dto.note ?? awaiting.paymentMethodNote } })
       : await this.prisma.payment.create({ data: { ...data, jobId, method: job.paymentMethod, currency: job.currency, paymentMethodNote: dto.note || null } });
@@ -108,26 +172,26 @@ export class PaymentsService {
   }
 
   /** Through UNRET: the customer pays by card; the money is held until the job is completed. */
-  async createPlatformPayment(user: AuthUser, jobId: string) {
+  async createPlatformPayment(user: AuthUser, jobId: string, part?: Part) {
     const { job, role } = await this.jobs.access(user, jobId);
     if (role !== 'customer') throw new ForbiddenException('Only the customer can pay for the job');
     if (!PAYABLE_JOB.includes(job.status)) throw new BadRequestException('This job cannot be paid');
-    if (await this.alreadySettled(jobId)) throw new BadRequestException('This job is already paid');
     await this.prisma.payment.updateMany({ where: { jobId, status: { in: ['PENDING', 'AWAITING_CONFIRMATION'] } }, data: { status: 'FAILED' } });
+    const { amount, kind } = this.nextCharge(await this.summaryFor(job), part);
 
     const country = await this.prisma.user.findUniqueOrThrow({ where: { id: job.customerId }, select: { country: true } });
-    const platformFeeMinor = Math.round((job.agreedPriceMinor * country.country.platformFeeBps) / 10000);
-    const intent = await this.provider.createIntent({ amountMinor: job.agreedPriceMinor, currency: job.currency, platformFeeMinor, jobId });
+    const platformFeeMinor = Math.round((amount * country.country.platformFeeBps) / 10000);
+    const intent = await this.provider.createIntent({ amountMinor: amount, currency: job.currency, platformFeeMinor, jobId });
     const payment = await this.prisma.payment.create({
       data: {
-        jobId, method: 'PLATFORM', provider: this.provider.name, providerReference: intent.reference,
-        grossMinor: job.agreedPriceMinor, platformFeeMinor, providerFeeMinor: intent.providerFeeMinor,
-        payoutMinor: Math.max(job.agreedPriceMinor - platformFeeMinor - intent.providerFeeMinor, 0),
+        jobId, method: 'PLATFORM', kind, provider: this.provider.name, providerReference: intent.reference,
+        grossMinor: amount, platformFeeMinor, providerFeeMinor: intent.providerFeeMinor,
+        payoutMinor: Math.max(amount - platformFeeMinor - intent.providerFeeMinor, 0),
         currency: job.currency, status: 'PENDING', payoutStatus: 'HELD',
       },
     });
     if (job.paymentMethod !== 'PLATFORM') await this.prisma.job.update({ where: { id: jobId }, data: { paymentMethod: 'PLATFORM' } });
-    return { paymentId: payment.id, provider: this.provider.name, clientSecret: intent.clientSecret, checkoutUrl: intent.checkoutUrl, amountMinor: payment.grossMinor, currency: payment.currency, platformFeeMinor, payoutMinor: payment.payoutMinor };
+    return { paymentId: payment.id, kind, provider: this.provider.name, clientSecret: intent.clientSecret, checkoutUrl: intent.checkoutUrl, amountMinor: payment.grossMinor, currency: payment.currency, platformFeeMinor, payoutMinor: payment.payoutMinor };
   }
 
   async markResult(reference: string, status: 'SUCCEEDED' | 'FAILED') {
@@ -137,9 +201,10 @@ export class PaymentsService {
     await this.audit.log({ action: `payment.${status.toLowerCase()}`, entityType: 'Payment', entityId: p.id, metadata: { reference } });
     if (status !== 'SUCCEEDED') return;
     await this.prisma.jobEvent.create({ data: { jobId: p.jobId, type: 'PAYMENT_SUCCEEDED', note: formatMoney(p.grossMinor, p.currency) } });
-    await this.notifications.notify({ userId: p.job.customerId, type: 'PAYMENT_COMPLETED', title: 'Payment received by UNRET', body: `${formatMoney(p.grossMinor, p.currency)} for "${p.job.request.title}" is held safely and sent to the professional when the job is done.`, data: { jobId: p.jobId, url: `/jobs/${p.jobId}` } });
+    await this.notifications.notify({ userId: p.job.customerId, type: 'PAYMENT_COMPLETED', title: p.kind === 'DEPOSIT' ? 'Deposit received by UNRET' : 'Payment received by UNRET', body: p.kind === 'DEPOSIT' ? `${formatMoney(p.grossMinor, p.currency)} deposit for "${p.job.request.title}" is held and released to the professional when the work starts.` : `${formatMoney(p.grossMinor, p.currency)} for "${p.job.request.title}" is held safely and sent to the professional when the job is done.`, data: { jobId: p.jobId, url: `/jobs/${p.jobId}` } });
     await this.notifications.notify({ userId: p.job.professional.userId, type: 'PAYMENT_COMPLETED', title: 'The customer paid through UNRET', body: `${formatMoney(p.grossMinor, p.currency)} for "${p.job.request.title}" is held by UNRET and sent to you when the job is completed.`, data: { jobId: p.jobId, url: `/jobs/${p.jobId}` } });
     if (p.job.status === 'COMPLETED') await this.payouts.releaseForJob(p.jobId);
+    else if (p.kind === 'DEPOSIT' && p.job.status === 'IN_PROGRESS') await this.payouts.releaseDeposit(p.jobId);
   }
 
   async mockConfirm(user: AuthUser, paymentId: string, outcome: 'succeed' | 'fail') {
@@ -203,6 +268,24 @@ export class PaymentsController {
   }
 
   @ApiBearerAuth()
+  @Get('payout-account')
+  payoutAccount(@CurrentUser() user: AuthUser) {
+    return this.payments.getPayoutAccount(user);
+  }
+
+  @ApiBearerAuth()
+  @Put('payout-account')
+  setPayoutAccount(@CurrentUser() user: AuthUser, @Body() dto: PayoutAccountDto, @ClientIp() ip: string) {
+    return this.payments.setPayoutAccount(user, dto, ip);
+  }
+
+  @ApiBearerAuth()
+  @Delete('payout-account')
+  removePayoutAccount(@CurrentUser() user: AuthUser) {
+    return this.payments.removePayoutAccount(user);
+  }
+
+  @ApiBearerAuth()
   @Patch('jobs/:jobId/method')
   setMethod(@CurrentUser() user: AuthUser, @Param('jobId') jobId: string, @Body() dto: MethodDto) {
     return this.payments.setMethod(user, jobId, dto.method);
@@ -222,8 +305,8 @@ export class PaymentsController {
 
   @ApiBearerAuth()
   @Post('jobs/:jobId/checkout')
-  checkout(@CurrentUser() user: AuthUser, @Param('jobId') jobId: string) {
-    return this.payments.createPlatformPayment(user, jobId);
+  checkout(@CurrentUser() user: AuthUser, @Param('jobId') jobId: string, @Body() dto: PartDto) {
+    return this.payments.createPlatformPayment(user, jobId, dto?.part);
   }
 
   @ApiBearerAuth()

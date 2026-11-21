@@ -36,6 +36,7 @@ function Nav() {
         <Stack.Screen name="requests/[id]" options={{ title: tr('Request details') }} />
         <Stack.Screen name="pro/requests/[id]" options={{ title: tr('Request details') }} />
         <Stack.Screen name="pro/onboard" options={{ title: tr('Offer your services') }} />
+        <Stack.Screen name="pro/payout" options={{ title: tr('Payout account (IBAN)') }} />
         <Stack.Screen name="pro/availability" options={{ title: tr('Calendar & availability') }} />
         <Stack.Screen name="jobs/[id]" options={{ title: tr('Job') }} />
         <Stack.Screen name="messages/[id]" options={{ title: tr('Messages') }} />

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Platform, Pressable, View } from 'react-native';
 import { useTheme } from './theme';
 import { Alert, Badge, Button, Card, Field, Input, Row, Text, Tone } from './ui';
 import { api } from '@/lib/api';
@@ -42,7 +42,7 @@ export function PaymentMethodPicker({ value, onChange }: { value: Method | null;
 }
 
 const STATE: Record<string, [string, Tone]> = {
-  unpaid: ['Not paid yet', 'amber'], awaiting_confirmation: ['Waiting for confirmation', 'blue'], paid: ['Paid', 'green'],
+  unpaid: ['Not paid yet', 'amber'], awaiting_confirmation: ['Waiting for confirmation', 'blue'], deposit_paid: ['Deposit paid', 'blue'], partly_paid: ['Partly paid', 'blue'], paid: ['Paid', 'green'],
   processing: ['Payment in progress', 'blue'], held: ['Paid, held by UNRET', 'violet'], paid_out: ['Sent to the professional', 'green'], refunded: ['Refunded', 'gray'],
 };
 export function PaymentStateBadge({ state }: { state: string }) {
@@ -51,71 +51,144 @@ export function PaymentStateBadge({ state }: { state: string }) {
   return <Badge tone={tone}>{t(l)}</Badge>;
 }
 
-/** Payment panel on the job page: explains what happens next for this method and shows the right button. */
+export const DEPOSIT_OPTIONS = [10, 20, 30, 40, 50];
+export const formatIban = (iban: string) => iban.replace(/\s+/g, '').toUpperCase().replace(/(.{4})/g, '$1 ').trim();
+
+/** Offer form: ask for a deposit (10–50% of the price) before starting the work. */
+export function DepositPicker({ value, note, price, currency, onChange }: { value: string; note: string; price: string; currency: string; onChange: (percent: string, note: string) => void }) {
+  const th = useTheme();
+  const { t, intl } = useT();
+  const amount = value && Number(price) > 0 ? money(Math.round(((majorToMinor(price) ?? 0) * Number(value)) / 100), currency, intl) : null;
+  return (
+    <View style={{ gap: 8, borderWidth: 1, borderColor: th.line, borderRadius: 12, padding: 12 }}>
+      <Text variant="label">{t('Deposit before starting')}</Text>
+      <Row gap={6}>
+        {['', ...DEPOSIT_OPTIONS.map(String)].map((v) => {
+          const on = value === v;
+          return (
+            <Pressable key={v || 'none'} onPress={() => onChange(v, note)} accessibilityRole="radio" accessibilityState={{ selected: on }}
+              style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: on ? th.brand : th.line, backgroundColor: on ? th.brand : 'transparent' }}>
+              <Text variant="small" color={on ? th.onBrand : th.text}>{v ? `${v}%` : t('No deposit')}</Text>
+            </Pressable>
+          );
+        })}
+      </Row>
+      {value ? (
+        <>
+          <Text variant="small">{amount ? t('The customer pays {amount} before you start; the rest when the job is done.', { amount }) : t('The customer pays this part before you start; the rest when the job is done.')}</Text>
+          <Input value={note} onChangeText={(n) => onChange(value, n)} maxLength={300} placeholder={t('What the deposit covers, e.g. materials')} accessibilityLabel={t('What the deposit covers')} />
+        </>
+      ) : <Text variant="small">{t('The customer pays everything at the end, or as agreed.')}</Text>}
+    </View>
+  );
+}
+
+export function DepositLine({ priceMinor, percent, note, currency }: { priceMinor: number; percent?: number | null; note?: string | null; currency: string }) {
+  const { t, intl } = useT();
+  if (!percent) return null;
+  return <Text variant="small">💰 {t('Deposit: {amount} ({pct}%) before starting', { amount: money(Math.round((priceMinor * percent) / 100), currency, intl), pct: percent })}{note ? ` · ${note}` : ''}</Text>;
+}
+
+/** Payment panel on the job page: amounts, what happens next for this method, and the right button. */
 export function PaymentPanel({ job, onUpdated }: { job: any; onUpdated: (j: any) => void }) {
   const th = useTheme();
   const { t, intl } = useT();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [changing, setChanging] = useState(false);
-  const [amount, setAmount] = useState(String(job.agreedPriceMinor / 100));
   const [checkout, setCheckout] = useState<any | null>(null);
+  const [copied, setCopied] = useState(false);
   const can = (a: string) => job.allowedActions.includes(a);
   const isCustomer = job.viewerRole === 'customer';
-  const price = money(job.agreedPriceMinor, job.currency, intl);
+  const cur = job.currency;
+  const m = (v: number) => money(v, cur, intl);
+  const s = job.payment ?? { totalMinor: job.agreedPriceMinor, depositMinor: job.depositMinor ?? 0, paidMinor: 0, remainingMinor: job.agreedPriceMinor, depositPaid: false };
+  const deposit = s.depositMinor > 0;
+  const depositDue = deposit && s.paidMinor === 0;
+  const awaitingPay = job.payments.find((p: any) => p.status === 'AWAITING_CONFIRMATION');
+  const [amount, setAmount] = useState(String((awaitingPay?.grossMinor ?? (depositDue ? s.depositMinor : s.remainingMinor)) / 100));
   const pro = job.professional.displayName;
   const state: string = job.paymentState ?? 'unpaid';
-  const platform = job.payments.find((p: any) => p.method === 'PLATFORM' && p.status !== 'FAILED');
+  const live = job.payments.filter((p: any) => p.status !== 'FAILED');
+  const platformPaid = live.filter((p: any) => p.method === 'PLATFORM' && ['SUCCEEDED', 'PARTIALLY_REFUNDED'].includes(p.status));
+  const heldPayout = platformPaid.filter((p: any) => p.payoutStatus === 'HELD').reduce((a: number, p: any) => a + p.payoutMinor, 0);
+  const lastPayout = platformPaid.map((p: any) => p.payoutAt).filter(Boolean).sort().pop();
   const run = async (fn: () => Promise<any>) => { setBusy(true); setErr(null); try { const r = await fn(); if (r?.id && r.allowedActions) onUpdated(r); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); } };
   const reload = async () => onUpdated(await api(`/jobs/${job.id}`));
+  const pay = (part?: string) => run(async () => setCheckout(await api(`/payments/jobs/${job.id}/checkout`, { body: part ? { part } : {} })));
+  const markPaid = (part: string) => run(() => api(`/payments/jobs/${job.id}/mark-paid`, { body: { part } }));
 
-  let text = '';
+  let text: string;
   if (job.paymentMethod === 'PLATFORM') {
-    text = state === 'held' ? (isCustomer ? t('Paid. UNRET holds the money and sends it to {name} when the job is done.', { name: pro }) : t('The customer paid. You receive {amount} when the job is completed.', { amount: money(platform?.payoutMinor, job.currency, intl) }))
-      : state === 'paid_out' ? t('Sent to the professional on {date}.', { date: dateTime(platform?.payoutAt, intl) })
-      : state === 'refunded' ? t('The payment was refunded to the customer.')
-      : isCustomer ? t('Pay {amount} by card in the app. UNRET keeps it safe until the job is done.', { amount: price }) : t('The customer will pay {amount} through UNRET. You are paid when the job is completed.', { amount: price });
-  } else if (state === 'paid') {
-    text = t('{name} confirmed receiving the payment.', { name: pro });
-  } else if (state === 'awaiting_confirmation') {
-    text = isCustomer ? t('You said you paid. Waiting for {name} to confirm receiving it.', { name: pro }) : t('The customer says they paid {amount}. Confirm once you receive it.', { amount: price });
-  } else if (job.paymentMethod === 'CASH') {
-    text = isCustomer ? t('Pay {amount} in cash to {name}. They confirm in the app when they receive it.', { amount: price, name: pro }) : t('Collect {amount} in cash, then confirm here.', { amount: price });
-  } else {
-    text = isCustomer ? t('Pay {amount} to {name} by card or bank transfer, then tap “I have paid”.', { amount: price, name: pro }) : t('When the transfer arrives, confirm it here.');
-  }
+    if (state === 'held') text = isCustomer ? t('Paid. UNRET holds the money and sends it to {name} when the job is done.', { name: pro }) : t('The customer paid. You receive {amount} when the job is completed.', { amount: m(heldPayout) });
+    else if (state === 'paid_out') text = t('Sent to the professional on {date}.', { date: dateTime(lastPayout, intl) });
+    else if (state === 'refunded') text = t('The payment was refunded to the customer.');
+    else if (state === 'deposit_paid') text = isCustomer ? t('Deposit paid. UNRET releases it to {name} when the work starts. {amount} is left to pay.', { name: pro, amount: m(s.remainingMinor) }) : t('The customer paid the deposit. You receive it when you start the work; the rest is paid later.');
+    else if (depositDue) text = isCustomer ? t('{name} asks for a {amount} deposit before starting. Pay the deposit now and the rest later, or everything at once.', { name: pro, amount: m(s.depositMinor) }) : t('The customer pays a {amount} deposit through UNRET. You receive it when you start the work.', { amount: m(s.depositMinor) });
+    else text = isCustomer ? t('Pay {amount} by card in the app. UNRET keeps it safe until the job is done.', { amount: m(s.remainingMinor) }) : t('The customer will pay {amount} through UNRET. You are paid when the job is completed.', { amount: m(s.remainingMinor) });
+  } else if (state === 'paid') text = t('{name} confirmed receiving the payment.', { name: pro });
+  else if (state === 'awaiting_confirmation') text = isCustomer ? t('You said you paid. Waiting for {name} to confirm receiving it.', { name: pro }) : t('The customer says they paid {amount}. Confirm once you receive it.', { amount: m(awaitingPay?.grossMinor ?? s.remainingMinor) });
+  else if (state === 'deposit_paid') text = s.depositPaid ? t('Deposit paid. {amount} is left to pay.', { amount: m(s.remainingMinor) }) : t('{amount} is left to pay.', { amount: m(s.remainingMinor) });
+  else if (depositDue) text = isCustomer ? t('{name} asks for a {amount} deposit before starting. The rest is paid when the job is done.', { name: pro, amount: m(s.depositMinor) }) : t('You asked for a {amount} deposit. Confirm here when you receive it.', { amount: m(s.depositMinor) });
+  else if (job.paymentMethod === 'CASH') text = isCustomer ? t('Pay {amount} in cash to {name}. They confirm in the app when they receive it.', { amount: m(s.remainingMinor), name: pro }) : t('Collect {amount} in cash, then confirm here.', { amount: m(s.remainingMinor) });
+  else text = isCustomer ? t('Pay {amount} to {name} by card or bank transfer, then tap “I have paid”.', { amount: m(s.remainingMinor), name: pro }) : t('When the transfer arrives, confirm it here.');
+
+  const rows: [string, string, boolean?][] = [[t('Total'), m(s.totalMinor)]];
+  if (deposit) rows.push([t('Deposit'), m(s.depositMinor) + (s.depositPaid ? ' ✓' : '')]);
+  if (s.paidMinor > 0) rows.push([t('Paid'), m(s.paidMinor)]);
+  if (s.paidMinor > 0 && s.remainingMinor > 0) rows.push([t('Left to pay'), m(s.remainingMinor), true]);
 
   return (
     <Card>
       <Row style={{ justifyContent: 'space-between' }}>
         <Text variant="label">{methodIcon(job.paymentMethod)} {t(methodLabel(job.paymentMethod))}</Text>
-        <PaymentStateBadge state={state} />
+        <PaymentStateBadge state={state === 'deposit_paid' && !s.depositPaid ? 'partly_paid' : state} />
       </Row>
+      <View style={{ backgroundColor: th.brandSoft, borderRadius: 10, padding: 10, gap: 4 }}>
+        {rows.map(([k, v, strong]) => (
+          <Row key={k} style={{ justifyContent: 'space-between' }}><Text variant="small">{k}</Text><Text variant={strong ? 'label' : 'small'} color={th.text}>{v}</Text></Row>
+        ))}
+      </View>
+      {deposit && job.depositNote ? <Text variant="small">💰 {t('Deposit for')}: {job.depositNote}</Text> : null}
       <Text variant="small" style={{ color: th.soft }}>{text}</Text>
-      {can('mark_paid') && <Button title={t('I have paid')} onPress={() => run(() => api(`/payments/jobs/${job.id}/mark-paid`, { body: {} }))} loading={busy} />}
+      {job.payTo && (
+        <View style={{ borderWidth: 1, borderStyle: 'dashed', borderColor: th.brand, borderRadius: 10, padding: 10, gap: 6 }}>
+          <Text variant="small">{t('Pay to')} · {job.payTo.holderName}</Text>
+          <Text selectable variant="label" style={{ fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', letterSpacing: 0.5 }} testID="pay-to-iban">{formatIban(job.payTo.iban)}</Text>
+          {Platform.OS === 'web' && <Button small variant="outline" title={copied ? t('Copied') : t('Copy IBAN')} onPress={async () => { try { await (globalThis as any).navigator.clipboard.writeText(job.payTo.iban); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* ignore */ } }} />}
+        </View>
+      )}
+      {can('mark_paid') && (depositDue ? (
+        <View style={{ gap: 8 }}>
+          <Button title={t('I have paid the deposit ({amount})', { amount: m(s.depositMinor) })} onPress={() => markPaid('deposit')} loading={busy} />
+          <Button title={t('I have paid everything')} variant="outline" onPress={() => markPaid('full')} loading={busy} />
+        </View>
+      ) : <Button title={s.paidMinor > 0 ? t('I have paid the rest ({amount})', { amount: m(s.remainingMinor) }) : t('I have paid')} onPress={() => markPaid('full')} loading={busy} />)}
       {can('confirm_payment') && (
         <View style={{ gap: 8 }}>
-          <Field label={t('Amount received ({cur})', { cur: job.currency })}><Input value={amount} onChangeText={setAmount} keyboardType="decimal-pad" /></Field>
+          <Field label={t('Amount received ({cur})', { cur })} hint={depositDue && !awaitingPay ? t('Enter the deposit ({amount}) or the full price, whatever you received.', { amount: m(s.depositMinor) }) : undefined}><Input value={amount} onChangeText={setAmount} keyboardType="decimal-pad" /></Field>
           <Button title={job.paymentMethod === 'CASH' ? t('Confirm cash received') : t('Confirm payment received')} onPress={() => run(() => api(`/payments/jobs/${job.id}/confirm`, { body: { amountMinor: majorToMinor(amount) } }))} loading={busy} />
         </View>
       )}
-      {can('pay_online') && !checkout && <Button title={t('Pay {amount} now', { amount: price })} variant="sun" loading={busy} onPress={() => run(async () => setCheckout(await api(`/payments/jobs/${job.id}/checkout`, { method: 'POST' })))} />}
+      {!checkout && can('pay_deposit') && <Button title={t('Pay deposit {amount}', { amount: m(s.depositMinor) })} variant="sun" loading={busy} onPress={() => pay('deposit')} />}
+      {!checkout && can('pay_online') && <Button title={s.paidMinor > 0 ? t('Pay the rest {amount}', { amount: m(s.remainingMinor) }) : t('Pay {amount} now', { amount: m(s.remainingMinor) })} variant={can('pay_deposit') ? 'outline' : 'sun'} loading={busy} onPress={() => pay()} />}
       {checkout && (
         <View style={{ gap: 8 }}>
-          <Alert tone="amber">{t('Development mode: no real payment provider is configured. Simulate the result below.')}</Alert>
+          <Alert tone="amber">{t('Development mode: no real payment provider is configured. Simulate the result below.')} ({m(checkout.amountMinor)})</Alert>
           <Button title={t('Simulate successful payment')} loading={busy} onPress={() => run(async () => { await api(`/payments/${checkout.paymentId}/mock-confirm`, { body: { outcome: 'succeed' } }); setCheckout(null); await reload(); })} />
           <Button title={t('Simulate failure')} variant="outline" onPress={() => run(async () => { await api(`/payments/${checkout.paymentId}/mock-confirm`, { body: { outcome: 'fail' } }); setCheckout(null); await reload(); })} />
         </View>
       )}
       {can('change_payment_method') && (changing ? (
         <View style={{ gap: 8 }}>
-          <PaymentMethodPicker value={job.paymentMethod} onChange={(m) => { setChanging(false); if (m !== job.paymentMethod) run(() => api(`/payments/jobs/${job.id}/method`, { method: 'PATCH', body: { method: m } })); }} />
+          <PaymentMethodPicker value={job.paymentMethod} onChange={(mm) => { setChanging(false); if (mm !== job.paymentMethod) run(() => api(`/payments/jobs/${job.id}/method`, { method: 'PATCH', body: { method: mm } })); }} />
+          <Button small variant="ghost" title={`‹ ${t('Back')}`} onPress={() => setChanging(false)} />
         </View>
       ) : <Button small variant="ghost" title={t('Change payment method')} onPress={() => setChanging(true)} />)}
-      {job.payments.filter((p: any) => p.status !== 'FAILED').map((p: any) => (
+      {live.map((p: any) => (
         <Row key={p.id} style={{ justifyContent: 'space-between' }}>
-          <Text variant="small">{dateTime(p.confirmedAt ?? p.createdAt, intl)}</Text>
-          <Text variant="label">{money(p.grossMinor, p.currency, intl)}</Text>
+          <Text variant="small" style={{ flex: 1 }}>{p.kind === 'DEPOSIT' ? t('Deposit') : p.kind === 'BALANCE' ? t('Rest of the price') : t('Payment')} · {dateTime(p.confirmedAt ?? p.createdAt, intl)}{p.status === 'AWAITING_CONFIRMATION' ? ` · ${t('Waiting for confirmation')}` : ''}</Text>
+          <Text variant="label">{m(p.grossMinor)}</Text>
         </Row>
       ))}
       {err && <Alert>{err}</Alert>}
