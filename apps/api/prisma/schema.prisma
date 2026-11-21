@@ -309,24 +309,29 @@ model ProfessionalProfile {
   createdAt          DateTime                @default(now())
   updatedAt          DateTime                @updatedAt
 
-  user              User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  company           Company?                   @relation(fields: [companyId], references: [id])
-  services          ProfessionalService[]
-  portfolio         PortfolioItem[]
-  availabilityRules AvailabilityRule[]
-  availabilityBlock AvailabilityBlock[]
-  bookingPeriods    AvailabilityPeriod[]
-  payoutAccount     PayoutAccount?
-  appointments      Appointment[]
-  verifications     Verification[]
-  matches           RequestMatch[]
-  offers            Offer[]
-  jobs              Job[]                      @relation("ProfessionalJobs")
-  conversations     Conversation[]             @relation("ProfessionalConversations")
-  reviews           Review[]                   @relation("ReviewSubject")
-  savedBy           SavedProfessional[]
-  subscriptions     ProfessionalSubscription[]
-  directRequests    ServiceRequest[]           @relation("DirectRequests")
+  user                     User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company                  Company?                   @relation(fields: [companyId], references: [id])
+  services                 ProfessionalService[]
+  portfolio                PortfolioItem[]
+  availabilityRules        AvailabilityRule[]
+  availabilityBlock        AvailabilityBlock[]
+  bookingPeriods           AvailabilityPeriod[]
+  payoutAccount            PayoutAccount?
+  /// Connected account at the payment provider (Stripe Connect), used to send in-app payments to the professional.
+  providerAccountId        String?                    @unique
+  providerPayoutsEnabled   Boolean                    @default(false)
+  providerDetailsSubmitted Boolean                    @default(false)
+  providerAccountUpdatedAt DateTime?
+  appointments             Appointment[]
+  verifications            Verification[]
+  matches                  RequestMatch[]
+  offers                   Offer[]
+  jobs                     Job[]                      @relation("ProfessionalJobs")
+  conversations            Conversation[]             @relation("ProfessionalConversations")
+  reviews                  Review[]                   @relation("ReviewSubject")
+  savedBy                  SavedProfessional[]
+  subscriptions            ProfessionalSubscription[]
+  directRequests           ServiceRequest[]           @relation("DirectRequests")
 
   @@index([countryCode, visibility])
   @@index([companyId])

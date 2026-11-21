@@ -5,7 +5,7 @@ import { AuditService } from '../../common/audit.service';
 import { decrypt } from '../../common/crypto';
 import { PrismaService } from '../../common/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { PaymentProvider } from './provider';
+import { Payee, PaymentProvider } from './provider';
 
 export const PAYMENT_PROVIDER = 'PAYMENT_PROVIDER';
 
@@ -13,7 +13,8 @@ export const PAYMENT_PROVIDER = 'PAYMENT_PROVIDER';
  * Money paid through UNRET is held, then sent to the professional's IBAN:
  *  - a deposit when the professional starts the work (so they can buy materials),
  *  - everything else when the job is completed.
- * Without a payout account the money stays held and the professional is asked to add one.
+ * Without a payout destination the money stays held and the professional is asked to set one up:
+ * a Stripe account when payments go through Stripe Connect, otherwise their IBAN.
  * If the job is cancelled, anything still held is refunded to the customer.
  */
 @Injectable()
@@ -36,28 +37,44 @@ export class PayoutsService {
 
   private async send(payments: Awaited<ReturnType<PayoutsService['held']>>, reason: 'deposit' | 'completed') {
     for (const p of payments) {
-      const account = await this.prisma.payoutAccount.findUnique({ where: { professionalId: p.job.professional.id } });
       const amount = Math.max(p.payoutMinor - p.refundedMinor, 0);
-      if (!account) {
+      const dest = await this.destination(p.job.professional.id);
+      if (!dest) {
+        const viaProvider = this.provider.usesPayeeAccounts;
         await this.notifications.notify({
-          userId: p.job.professional.userId, type: 'PAYMENT_TO_CONFIRM', title: 'Add your IBAN to receive your money',
-          body: `${formatMoney(amount, p.currency)} for "${p.job.request.title}" is waiting for you. Add your payout account (IBAN) to receive it.`,
+          userId: p.job.professional.userId, type: 'PAYMENT_TO_CONFIRM',
+          title: viaProvider ? 'Set up payouts to receive your money' : 'Add your IBAN to receive your money',
+          body: viaProvider
+            ? `${formatMoney(amount, p.currency)} for "${p.job.request.title}" is waiting for you. Finish setting up payouts (bank account and identity check with Stripe) to receive it.`
+            : `${formatMoney(amount, p.currency)} for "${p.job.request.title}" is waiting for you. Add your payout account (IBAN) to receive it.`,
           data: { jobId: p.jobId, url: '/pro/earnings' },
         });
         continue;
       }
       try {
-        const { reference } = await this.provider.payout({ paymentReference: p.providerReference!, amountMinor: amount, currency: p.currency, professionalId: p.job.professional.id, iban: decrypt(account.ibanEncrypted), holderName: account.holderName });
+        const { reference } = await this.provider.payout({ paymentReference: p.providerReference!, amountMinor: amount, currency: p.currency, jobId: p.jobId, payee: dest.payee });
         await this.prisma.payment.update({ where: { id: p.id }, data: { payoutStatus: 'SENT', payoutReference: reference, payoutAt: new Date() } });
-        await this.prisma.jobEvent.create({ data: { jobId: p.jobId, type: 'PAYOUT_SENT', note: `${formatMoney(amount, p.currency)}${p.kind === 'DEPOSIT' ? ' · deposit' : ''} → •••• ${account.ibanLast4}` } });
+        await this.prisma.jobEvent.create({ data: { jobId: p.jobId, type: 'PAYOUT_SENT', note: `${formatMoney(amount, p.currency)}${p.kind === 'DEPOSIT' ? ' · deposit' : ''} → ${dest.label}` } });
         await this.audit.log({ action: 'payment.payout.sent', entityType: 'Payment', entityId: p.id, metadata: { amount, reference, kind: p.kind, reason } });
         const what = p.kind === 'DEPOSIT' ? 'The deposit' : 'Your payment';
-        await this.notifications.notify({ userId: p.job.professional.userId, type: 'PAYMENT_COMPLETED', title: `${what} was sent to your account`, body: `${formatMoney(amount, p.currency)} for "${p.job.request.title}" → IBAN •••• ${account.ibanLast4}.`, data: { jobId: p.jobId, url: `/jobs/${p.jobId}` } });
+        await this.notifications.notify({ userId: p.job.professional.userId, type: 'PAYMENT_COMPLETED', title: `${what} was sent to your account`, body: `${formatMoney(amount, p.currency)} for "${p.job.request.title}" → ${dest.label}.`, data: { jobId: p.jobId, url: `/jobs/${p.jobId}` } });
         await this.notifications.notify({ userId: p.job.customerId, type: 'PAYMENT_COMPLETED', title: p.kind === 'DEPOSIT' ? 'Deposit released to the professional' : 'Payment released to the professional', body: `UNRET sent your ${p.kind === 'DEPOSIT' ? 'deposit' : 'payment'} for "${p.job.request.title}" to the professional.`, data: { jobId: p.jobId, url: `/jobs/${p.jobId}` } });
       } catch (e) {
         this.log.error(`Payout for payment ${p.id} failed: ${(e as Error).message}`);
       }
     }
+  }
+
+  /** Where this professional's money goes, or null when they have not set it up yet. */
+  private async destination(professionalId: string): Promise<{ payee: Payee; label: string } | null> {
+    if (this.provider.usesPayeeAccounts) {
+      const pro = await this.prisma.professionalProfile.findUnique({ where: { id: professionalId }, select: { providerAccountId: true, providerPayoutsEnabled: true } });
+      if (!pro?.providerAccountId || !pro.providerPayoutsEnabled) return null;
+      return { payee: { accountRef: pro.providerAccountId }, label: 'Stripe' };
+    }
+    const account = await this.prisma.payoutAccount.findUnique({ where: { professionalId } });
+    if (!account) return null;
+    return { payee: { iban: decrypt(account.ibanEncrypted), holderName: account.holderName }, label: `IBAN •••• ${account.ibanLast4}` };
   }
 
   /** Job completed: release everything still held. */

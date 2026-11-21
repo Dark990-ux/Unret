@@ -36,7 +36,10 @@ services:
       STORAGE_DIR: /data/uploads
       PUBLIC_API_URL: ""
       WEB_ORIGIN: http://localhost:3000,http://localhost:8081
-      PAYMENT_PROVIDER: mock
+      # Payments: "mock" simulates payments. For Stripe, put these in a .env file next to this file (see docs/payments.md).
+      PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-mock}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
     volumes: [uploads:/data/uploads]
     ports: ["4000:4000"]
 

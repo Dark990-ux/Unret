@@ -171,6 +171,7 @@ export class JobsService {
       company: role === 'professional' ? j.company : j.company ? { id: j.company.id, displayName: j.company.displayName } : null,
       paymentState: summary.state,
       payment: summary,
+      paymentProvider: process.env.PAYMENT_PROVIDER || 'mock',
       payTo: role === 'customer' && ['TRANSFER', 'DIRECT'].includes(j.paymentMethod) && summary.remainingMinor > 0 ? await this.payTo(j.professionalId) : null,
       allowedActions: this.allowedActions({ ...j, summary }, role, user.id),
     };
@@ -201,7 +202,8 @@ export class JobsService {
     if (payable && role === 'customer' && nothingYet) a.push('change_payment_method');
     if (payable && role === 'customer' && direct && j.paymentMethod !== 'CASH' && p.remainingMinor > 0 && !p.awaiting) a.push('mark_paid');
     if ((payable || j.status === 'DISPUTED') && role === 'professional' && direct && p.remainingMinor > 0) a.push('confirm_payment');
-    if (payable && role === 'customer' && !direct && p.remainingMinor > 0 && !p.processing) {
+    // Also while a payment page is open: starting a new one first checks the old page with the provider (no double charge).
+    if (payable && role === 'customer' && !direct && p.remainingMinor > 0) {
       if (p.depositMinor > 0 && p.paidMinor === 0) a.push('pay_deposit');
       a.push('pay_online');
     }

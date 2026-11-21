@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { dateTime, majorToMinor, money } from '@/lib/format';
 import { useT } from '@/lib/i18n';
@@ -111,7 +111,28 @@ export function PaymentPanel({ job, onUpdated }: { job: any; onUpdated: (j: any)
   const lastPayout = platformPaid.map((p: any) => p.payoutAt).filter(Boolean).sort().pop();
   const run = async (fn: () => Promise<any>) => { setBusy(true); setErr(null); try { const r = await fn(); if (r?.id && r.allowedActions) onUpdated(r); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); } };
   const reload = async () => onUpdated(await api(`/jobs/${job.id}`));
-  const pay = (part?: string) => run(async () => setCheckout(await api(`/payments/jobs/${job.id}/checkout`, { body: part ? { part } : {} })));
+  const pay = (part?: string) => run(async () => {
+    const r = await api<any>(`/payments/jobs/${job.id}/checkout`, { body: { ...(part ? { part } : {}), returnUrl: `${window.location.origin}/jobs/${job.id}` } });
+    if (r.checkoutUrl) window.location.assign(r.checkoutUrl); // the provider's secure payment page
+    else setCheckout(r); // development provider: simulate below
+  });
+  // Back from the payment page: ask the provider for the result right away (the webhook may still be on its way).
+  const [returned, setReturned] = useState<string | null>(null);
+  const pendingId = live.find((p: any) => p.method === 'PLATFORM' && p.status === 'PENDING' && p.provider !== 'mock')?.id;
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get('payment');
+    if (q) { setReturned(q); window.history.replaceState(null, '', window.location.pathname); }
+    if (!pendingId) return;
+    if (q === 'cancelled') { api(`/payments/${pendingId}/cancel`, { method: 'POST' }).then(() => reload()).catch(() => undefined); return; }
+    let stop = false;
+    const tick = async (n: number) => {
+      try { const p = await api<any>(`/payments/${pendingId}/sync`, { method: 'POST' }); if (p.status !== 'PENDING') { if (!stop) await reload(); return; } } catch { /* try again */ }
+      if (!stop && n < 5) setTimeout(() => tick(n + 1), 2000);
+    };
+    tick(0);
+    return () => { stop = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingId]);
 
   let text: string;
   if (job.paymentMethod === 'PLATFORM') {
@@ -144,6 +165,9 @@ export function PaymentPanel({ job, onUpdated }: { job: any; onUpdated: (j: any)
       </dl>
       {deposit && job.depositNote && <p className="text-xs text-ink-muted">💰 {t('Deposit for')}: {job.depositNote}</p>}
       <p className="text-sm text-ink-soft dark:text-white/70">{text}</p>
+      {returned === 'cancelled' && <Alert tone="amber">{t('Payment cancelled. You were not charged.')}</Alert>}
+      {returned === 'success' && pendingId && <Alert tone="blue">{t('Thank you! Confirming your payment…')}</Alert>}
+      {isCustomer && can('pay_online') && job.paymentProvider === 'stripe' && <p className="text-xs text-ink-muted">🔒 {t('You pay on Stripe’s secure page. UNRET never sees your card details.')}</p>}
       {job.payTo && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-dashed border-brand-300 p-3 dark:border-brand-700">
           <div className="min-w-0 text-sm">

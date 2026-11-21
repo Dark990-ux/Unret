@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Platform, Pressable, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { AppState, Linking, Platform, Pressable, View } from 'react-native';
 import { useTheme } from './theme';
 import { Alert, Badge, Button, Card, Field, Input, Row, Text, Tone } from './ui';
 import { api } from '@/lib/api';
@@ -115,7 +115,30 @@ export function PaymentPanel({ job, onUpdated }: { job: any; onUpdated: (j: any)
   const lastPayout = platformPaid.map((p: any) => p.payoutAt).filter(Boolean).sort().pop();
   const run = async (fn: () => Promise<any>) => { setBusy(true); setErr(null); try { const r = await fn(); if (r?.id && r.allowedActions) onUpdated(r); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); } };
   const reload = async () => onUpdated(await api(`/jobs/${job.id}`));
-  const pay = (part?: string) => run(async () => setCheckout(await api(`/payments/jobs/${job.id}/checkout`, { body: part ? { part } : {} })));
+  const web = Platform.OS === 'web' && typeof window !== 'undefined';
+  const pay = (part?: string) => run(async () => {
+    // On the web build the payment page returns to this screen; the native app gets the result when it comes back to the foreground.
+    const r = await api<any>(`/payments/jobs/${job.id}/checkout`, { body: { ...(part ? { part } : {}), ...(web ? { returnUrl: `${window.location.origin}/jobs/${job.id}` } : {}) } });
+    if (r.checkoutUrl) { if (web) window.location.assign(r.checkoutUrl); else await Linking.openURL(r.checkoutUrl); }
+    else setCheckout(r); // development provider: simulate below
+  });
+  const [returned, setReturned] = useState<string | null>(null);
+  const pendingId = live.find((p: any) => p.method === 'PLATFORM' && p.status === 'PENDING' && p.provider !== 'mock')?.id;
+  useEffect(() => {
+    const q = web ? new URLSearchParams(window.location.search).get('payment') : null;
+    if (q) { setReturned(q); window.history.replaceState(null, '', window.location.pathname); }
+    if (!pendingId) return;
+    if (q === 'cancelled') { api(`/payments/${pendingId}/cancel`, { method: 'POST' }).then(() => reload()).catch(() => undefined); return; }
+    let stop = false;
+    const check = async (n: number) => {
+      try { const p = await api<any>(`/payments/${pendingId}/sync`, { method: 'POST' }); if (p.status !== 'PENDING') { if (!stop) await reload(); return; } } catch { /* try again */ }
+      if (!stop && n < 5) setTimeout(() => check(n + 1), 2000);
+    };
+    check(0);
+    const sub = AppState.addEventListener('change', (s) => { if (s === 'active') check(3); });
+    return () => { stop = true; sub.remove(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingId]);
   const markPaid = (part: string) => run(() => api(`/payments/jobs/${job.id}/mark-paid`, { body: { part } }));
 
   let text: string;
@@ -151,6 +174,9 @@ export function PaymentPanel({ job, onUpdated }: { job: any; onUpdated: (j: any)
       </View>
       {deposit && job.depositNote ? <Text variant="small">💰 {t('Deposit for')}: {job.depositNote}</Text> : null}
       <Text variant="small" style={{ color: th.soft }}>{text}</Text>
+      {returned === 'cancelled' && <Alert tone="amber">{t('Payment cancelled. You were not charged.')}</Alert>}
+      {returned === 'success' && pendingId && <Alert tone="blue">{t('Thank you! Confirming your payment…')}</Alert>}
+      {isCustomer && can('pay_online') && job.paymentProvider === 'stripe' && <Text variant="small">🔒 {t('You pay on Stripe’s secure page. UNRET never sees your card details.')}</Text>}
       {job.payTo && (
         <View style={{ borderWidth: 1, borderStyle: 'dashed', borderColor: th.brand, borderRadius: 10, padding: 10, gap: 6 }}>
           <Text variant="small">{t('Pay to')} · {job.payTo.holderName}</Text>

@@ -13,11 +13,17 @@ import { PrismaService } from '../../common/prisma.service';
 import { JobsService, paymentSummary } from '../jobs/jobs.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PAYMENT_PROVIDER, PayoutsService } from './payouts.service';
+import { StripePaymentProvider } from './stripe.provider';
 import { MockPaymentProvider, PaymentProvider } from './provider';
 
 type Part = 'deposit' | 'balance' | 'full';
 class PartDto {
   @IsOptional() @IsIn(['deposit', 'balance', 'full']) part?: Part;
+  /** Where the payment page sends the customer back to (must be an UNRET address). */
+  @IsOptional() @IsString() @MaxLength(500) returnUrl?: string;
+}
+class ReturnUrlDto {
+  @IsOptional() @IsString() @MaxLength(500) returnUrl?: string;
 }
 class PayoutAccountDto {
   @IsString() @Length(3, 120) holderName: string;
@@ -172,16 +178,39 @@ export class PaymentsService {
   }
 
   /** Through UNRET: the customer pays by card; the money is held until the job is completed. */
-  async createPlatformPayment(user: AuthUser, jobId: string, part?: Part) {
+  /** Only UNRET's own pages (website, app) may be used as return addresses, so the payment page cannot redirect elsewhere. */
+  private safeReturnUrl(url: string | undefined, fallbackPath: string) {
+    const origins = [...(process.env.WEB_ORIGIN ?? 'http://localhost:3000').split(','), ...(process.env.APP_ORIGINS ?? '').split(',')].map((o) => o.trim()).filter(Boolean);
+    const fallback = origins[0] + fallbackPath;
+    if (!url) return fallback;
+    if (url.startsWith('unret://')) return url;
+    try {
+      const u = new URL(url);
+      return origins.some((o) => new URL(o).origin === u.origin) ? u.toString() : fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  async createPlatformPayment(user: AuthUser, jobId: string, part?: Part, returnUrl?: string) {
     const { job, role } = await this.jobs.access(user, jobId);
     if (role !== 'customer') throw new ForbiddenException('Only the customer can pay for the job');
     if (!PAYABLE_JOB.includes(job.status)) throw new BadRequestException('This job cannot be paid');
+    // An earlier payment page may still be open (or was paid but the result has not arrived yet).
+    for (const old of await this.prisma.payment.findMany({ where: { jobId, status: 'PENDING', method: 'PLATFORM' } })) {
+      if (!old.providerReference || old.provider !== this.provider.name) continue;
+      const status = await this.provider.paymentStatus(old.providerReference);
+      if (status === 'SUCCEEDED') await this.markResult(old.providerReference, 'SUCCEEDED');
+      else await this.provider.cancelIntent(old.providerReference).catch(() => undefined);
+    }
     await this.prisma.payment.updateMany({ where: { jobId, status: { in: ['PENDING', 'AWAITING_CONFIRMATION'] } }, data: { status: 'FAILED' } });
     const { amount, kind } = this.nextCharge(await this.summaryFor(job), part);
 
     const country = await this.prisma.user.findUniqueOrThrow({ where: { id: job.customerId }, select: { country: true } });
     const platformFeeMinor = Math.round((amount * country.country.platformFeeBps) / 10000);
-    const intent = await this.provider.createIntent({ amountMinor: amount, currency: job.currency, platformFeeMinor, jobId });
+    const customer = await this.prisma.user.findUnique({ where: { id: job.customerId }, select: { email: true } });
+    const description = `${job.request.title} · ${kind === 'DEPOSIT' ? 'deposit' : kind === 'BALANCE' ? 'rest of the price' : 'payment'}`;
+    const intent = await this.provider.createIntent({ amountMinor: amount, currency: job.currency, platformFeeMinor, jobId, description, returnUrl: this.safeReturnUrl(returnUrl, `/jobs/${jobId}`), customerEmail: customer?.email });
     const payment = await this.prisma.payment.create({
       data: {
         jobId, method: 'PLATFORM', kind, provider: this.provider.name, providerReference: intent.reference,
@@ -196,7 +225,11 @@ export class PaymentsService {
 
   async markResult(reference: string, status: 'SUCCEEDED' | 'FAILED') {
     const p = await this.prisma.payment.findUnique({ where: { providerReference: reference }, include: { job: { include: { professional: { select: { userId: true } }, request: { select: { title: true } } } } } });
-    if (!p || p.status !== 'PENDING') return;
+    if (!p) return;
+    // Money that really arrived is always recorded, even for a page that was replaced in the meantime.
+    const late = p.status === 'FAILED' && status === 'SUCCEEDED';
+    if (p.status !== 'PENDING' && !late) return;
+    if (late) await this.audit.log({ action: 'payment.late_success', entityType: 'Payment', entityId: p.id, metadata: { reference } });
     await this.prisma.payment.update({ where: { id: p.id }, data: { status } });
     await this.audit.log({ action: `payment.${status.toLowerCase()}`, entityType: 'Payment', entityId: p.id, metadata: { reference } });
     if (status !== 'SUCCEEDED') return;
@@ -215,11 +248,95 @@ export class PaymentsService {
     return this.prisma.payment.findUnique({ where: { id: paymentId } });
   }
 
+  /** Asks the provider for the result of a pending payment (used when the customer returns from the payment page). */
+  async sync(user: AuthUser, paymentId: string) {
+    const p = await this.prisma.payment.findUnique({ where: { id: paymentId }, include: { job: true } });
+    if (!p || (p.job.customerId !== user.id && user.role !== 'ADMIN')) throw new NotFoundException();
+    if (p.status === 'PENDING' && p.providerReference && p.provider === this.provider.name) {
+      const status = await this.provider.paymentStatus(p.providerReference);
+      if (status !== 'PENDING') await this.markResult(p.providerReference, status);
+    }
+    return this.prisma.payment.findUnique({ where: { id: paymentId }, select: { id: true, status: true, kind: true, grossMinor: true } });
+  }
+
+  /** The customer left the payment page without paying: close it so it can no longer be paid. */
+  async cancelPending(user: AuthUser, paymentId: string) {
+    const p = await this.prisma.payment.findUnique({ where: { id: paymentId }, include: { job: true } });
+    if (!p || p.job.customerId !== user.id) throw new NotFoundException();
+    if (p.status !== 'PENDING' || !p.providerReference) return { id: p.id, status: p.status };
+    if ((await this.provider.paymentStatus(p.providerReference)) === 'SUCCEEDED') await this.markResult(p.providerReference, 'SUCCEEDED');
+    else {
+      await this.provider.cancelIntent(p.providerReference).catch(() => undefined);
+      await this.prisma.payment.updateMany({ where: { id: p.id, status: 'PENDING' }, data: { status: 'FAILED' } });
+    }
+    return this.prisma.payment.findUnique({ where: { id: paymentId }, select: { id: true, status: true } });
+  }
+
   async webhook(raw: Buffer, signature?: string) {
     const ev = this.provider.parseWebhook(raw, signature);
     if (!ev) throw new BadRequestException('Invalid webhook');
-    await this.markResult(ev.reference, ev.status);
+    if (ev.kind === 'payment') await this.markResult(ev.reference, ev.status);
+    if (ev.kind === 'payee') await this.updatePayee(ev.accountRef, ev);
     return { received: true };
+  }
+
+  // ── Payouts through the provider (Stripe Connect) ──
+
+  private async updatePayee(accountRef: string, st: { payoutsEnabled: boolean; detailsSubmitted: boolean }) {
+    const pro = await this.prisma.professionalProfile.findUnique({ where: { providerAccountId: accountRef } });
+    if (!pro) return;
+    await this.prisma.professionalProfile.update({ where: { id: pro.id }, data: { providerPayoutsEnabled: st.payoutsEnabled, providerDetailsSubmitted: st.detailsSubmitted, providerAccountUpdatedAt: new Date() } });
+    if (st.payoutsEnabled && !pro.providerPayoutsEnabled) {
+      await this.audit.log({ action: 'payout_provider.enabled', entityType: 'ProfessionalProfile', entityId: pro.id, metadata: { accountRef } });
+      await this.notifications.notify({ userId: pro.userId, type: 'PAYMENT_COMPLETED', title: 'Payouts are active', body: 'Money customers pay through UNRET is now sent to your bank account.', data: { url: '/pro/earnings' } });
+      await this.payouts.releaseWaiting(pro.id);
+    }
+  }
+
+  /** Payout setup for the professional: which provider, and whether their account there is ready. */
+  async payoutStatus(user: AuthUser) {
+    const pid = requirePro(user);
+    let pro = await this.prisma.professionalProfile.findUniqueOrThrow({ where: { id: pid } });
+    if (this.provider.usesPayeeAccounts && pro.providerAccountId && !pro.providerPayoutsEnabled && this.provider.payeeStatus) {
+      try {
+        await this.updatePayee(pro.providerAccountId, await this.provider.payeeStatus(pro.providerAccountId));
+        pro = await this.prisma.professionalProfile.findUniqueOrThrow({ where: { id: pid } });
+      } catch (e) {
+        // The provider may be unreachable; show the last known status.
+      }
+    }
+    const held = await this.prisma.payment.aggregate({ where: { job: { professionalId: pid }, method: 'PLATFORM', payoutStatus: 'HELD', status: { in: ['SUCCEEDED', 'PARTIALLY_REFUNDED'] } }, _sum: { payoutMinor: true } });
+    return {
+      provider: this.provider.name,
+      connect: this.provider.usesPayeeAccounts
+        ? { status: pro.providerPayoutsEnabled ? 'active' : pro.providerAccountId ? 'incomplete' : 'not_started', detailsSubmitted: pro.providerDetailsSubmitted, payoutsEnabled: pro.providerPayoutsEnabled }
+        : null,
+      heldMinor: held._sum.payoutMinor ?? 0,
+    };
+  }
+
+  /** Creates the professional's account at the provider (once) and returns the provider's onboarding page. */
+  async startPayoutOnboarding(user: AuthUser, returnUrl?: string) {
+    const pid = requirePro(user);
+    if (!this.provider.usesPayeeAccounts || !this.provider.createPayeeAccount || !this.provider.payeeOnboardingUrl) throw new BadRequestException('Payouts are sent to your IBAN; add it on this page.');
+    const pro = await this.prisma.professionalProfile.findUniqueOrThrow({ where: { id: pid }, include: { user: { select: { email: true } } } });
+    let accountRef = pro.providerAccountId;
+    if (!accountRef) {
+      if (!pro.user.email) throw new BadRequestException('Add an email address to your account first');
+      const country = (await this.prisma.user.findUnique({ where: { id: user.id }, select: { countryCode: true } }))?.countryCode ?? 'RO';
+      accountRef = await this.provider.createPayeeAccount({ email: pro.user.email, country, businessType: pro.accountType === 'COMPANY' ? 'company' : 'individual', professionalId: pid });
+      await this.prisma.professionalProfile.update({ where: { id: pid }, data: { providerAccountId: accountRef, providerAccountUpdatedAt: new Date() } });
+      await this.audit.log({ actorId: user.id, action: 'payout_provider.account_created', entityType: 'ProfessionalProfile', entityId: pid, metadata: { accountRef } });
+    }
+    const back = this.safeReturnUrl(returnUrl, '/pro/earnings');
+    return { url: await this.provider.payeeOnboardingUrl(accountRef, back, back) };
+  }
+
+  /** The provider's dashboard where the professional sees their payouts and changes their bank account. */
+  async payoutDashboard(user: AuthUser) {
+    const pro = await this.prisma.professionalProfile.findUniqueOrThrow({ where: { id: requirePro(user) } });
+    if (!pro.providerAccountId || !this.provider.payeeDashboardUrl) throw new BadRequestException('Set up payouts first');
+    return { url: await this.provider.payeeDashboardUrl(pro.providerAccountId) };
   }
 
   async refund(admin: AuthUser, paymentId: string, dto: RefundDto) {
@@ -268,6 +385,36 @@ export class PaymentsController {
   }
 
   @ApiBearerAuth()
+  @Get('payouts/status')
+  payoutStatus(@CurrentUser() user: AuthUser) {
+    return this.payments.payoutStatus(user);
+  }
+
+  @ApiBearerAuth()
+  @Post('payouts/onboard')
+  startPayoutOnboarding(@CurrentUser() user: AuthUser, @Body() dto: ReturnUrlDto) {
+    return this.payments.startPayoutOnboarding(user, dto?.returnUrl);
+  }
+
+  @ApiBearerAuth()
+  @Post('payouts/dashboard')
+  payoutDashboard(@CurrentUser() user: AuthUser) {
+    return this.payments.payoutDashboard(user);
+  }
+
+  @ApiBearerAuth()
+  @Post(':id/cancel')
+  cancelPending(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.payments.cancelPending(user, id);
+  }
+
+  @ApiBearerAuth()
+  @Post(':id/sync')
+  sync(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.payments.sync(user, id);
+  }
+
+  @ApiBearerAuth()
   @Get('payout-account')
   payoutAccount(@CurrentUser() user: AuthUser) {
     return this.payments.getPayoutAccount(user);
@@ -306,7 +453,7 @@ export class PaymentsController {
   @ApiBearerAuth()
   @Post('jobs/:jobId/checkout')
   checkout(@CurrentUser() user: AuthUser, @Param('jobId') jobId: string, @Body() dto: PartDto) {
-    return this.payments.createPlatformPayment(user, jobId, dto?.part);
+    return this.payments.createPlatformPayment(user, jobId, dto?.part, dto?.returnUrl);
   }
 
   @ApiBearerAuth()
@@ -349,8 +496,13 @@ export class PaymentsController {
       inject: [ConfigService, MockPaymentProvider],
       useFactory: (config: ConfigService, mock: MockPaymentProvider) => {
         const name = config.get('PAYMENT_PROVIDER') ?? 'mock';
-        if (name !== 'mock') throw new Error(`Payment provider "${name}" is not configured. Implement PaymentProvider for it in payments/provider.ts`);
-        return mock;
+        if (name === 'mock') return mock;
+        if (name === 'stripe') {
+          const key = config.get<string>('STRIPE_SECRET_KEY');
+          if (!key) throw new Error('PAYMENT_PROVIDER=stripe needs STRIPE_SECRET_KEY (see docs/payments.md)');
+          return new StripePaymentProvider(key, config.get<string>('STRIPE_WEBHOOK_SECRET'), config.get<string>('STRIPE_API_BASE') || undefined);
+        }
+        throw new Error(`Unknown PAYMENT_PROVIDER "${name}". Use "mock" or "stripe".`);
       },
     },
   ],
