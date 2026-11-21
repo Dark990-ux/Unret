@@ -30,9 +30,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    secureStorage.get('unret.mode').then((m) => (m === 'professional' || m === 'customer') && setModeState(m));
+    const readMode = () => secureStorage.get('unret.mode').then((m) => setModeState(m === 'professional' || m === 'customer' ? m : null));
+    readMode();
     reload();
-    return onSessionChange(() => { reload(); });
+    return onSessionChange(() => { readMode(); reload(); });
   }, [reload]);
 
   // Register this device for push notifications once signed in.

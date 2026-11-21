@@ -1,5 +1,7 @@
 import { router, Stack } from 'expo-router';
-import { Pressable, Text } from 'react-native';
+import { Platform, Pressable, Text } from 'react-native';
+import { saveSession } from '@/lib/api';
+import { secureStorage } from '@/lib/storage';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -42,6 +44,17 @@ function Nav() {
       </Stack>
     </>
   );
+}
+
+if (Platform.OS === 'web' && typeof window !== 'undefined') {
+  (window as any).__unretPreview = {
+    async switchUser(session: { accessToken: string; refreshToken: string }, mode: 'customer' | 'professional') {
+      await secureStorage.set('unret.mode', mode);
+      await saveSession(session);
+      if (router.canDismiss()) router.dismissAll();
+      router.replace('/(tabs)');
+    },
+  };
 }
 
 export default function RootLayout() {
