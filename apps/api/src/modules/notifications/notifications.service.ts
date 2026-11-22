@@ -1,4 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { createHmac, timingSafeEqual } from 'crypto';
 import { Prisma } from '@prisma/client';
 import { ESSENTIAL_NOTIFICATIONS, NotificationType } from '@unret/shared';
 import { PrismaService } from '../../common/prisma.service';
@@ -77,14 +78,69 @@ export class NotificationsService implements OnModuleInit {
     for (const userId of userIds) await this.notify({ ...base, userId });
   }
 
+  // ── Email links ──
+
+  /** The website's public address (links in emails). */
+  webBase() {
+    return (process.env.PUBLIC_WEB_URL || (process.env.WEB_ORIGIN ?? 'http://localhost:3000').split(',')[0]).trim().replace(/\/$/, '');
+  }
+
+  private secret() {
+    return process.env.FILE_SIGNING_SECRET || process.env.JWT_ACCESS_SECRET || 'unret';
+  }
+
+  /** Signed token for the one-click "turn off email notifications" link (works without signing in, cannot be forged). */
+  unsubscribeToken(userId: string) {
+    return `${userId}.${createHmac('sha256', this.secret()).update(`unsubscribe:${userId}`).digest('base64url')}`;
+  }
+
+  verifyUnsubscribeToken(token: string): string | null {
+    const [userId, sig] = String(token ?? '').split('.');
+    if (!userId || !sig) return null;
+    const expected = Buffer.from(this.unsubscribeToken(userId).split('.')[1]);
+    const given = Buffer.from(sig);
+    return expected.length === given.length && timingSafeEqual(expected, given) ? userId : null;
+  }
+
+  emailLinks(userId: string, url?: unknown) {
+    const web = this.webBase();
+    const api = (process.env.PUBLIC_API_URL || `${web}`).replace(/\/$/, '') + '/api/v1';
+    const token = this.unsubscribeToken(userId);
+    return {
+      actionUrl: typeof url === 'string' && url.startsWith('/') ? web + url : null,
+      manageUrl: `${web}/settings#notifications`,
+      unsubscribePageUrl: `${web}/unsubscribe?token=${encodeURIComponent(token)}`,
+      unsubscribePostUrl: `${api}/notifications/unsubscribe?token=${encodeURIComponent(token)}`,
+    };
+  }
+
+  /** Sends one sample email so people can check that emails reach them (and how they look). */
+  async sendTestEmail(userId: string) {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { email: true, preferredLanguage: true } });
+    if (!user.email) return { sent: false, reason: 'no_email' };
+    const ro = user.preferredLanguage === 'ro';
+    await this.email.send({
+      to: user.email, locale: user.preferredLanguage,
+      subject: ro ? 'Emailurile UNRET funcționează' : 'UNRET emails are working',
+      body: ro ? 'Așa vor arăta notificările prin email: cereri noi, oferte, mesaje și altele. Le poți opri oricând din setări.' : 'This is how email notifications will look: new requests, offers, messages and more. You can turn them off at any time in your settings.',
+      ...this.emailLinks(userId, '/notifications'),
+    });
+    return { sent: true, to: user.email, delivered: this.email.configured };
+  }
+
   private async deliver(d: NotifyInput & { email: boolean; push: boolean; sms: boolean }) {
     const user = await this.prisma.user.findUnique({
       where: { id: d.userId },
-      select: { email: true, phone: true, status: true, pushDevices: { select: { token: true } } },
+      select: { email: true, phone: true, status: true, emailNotifications: true, preferredLanguage: true, pushDevices: { select: { token: true } } },
     });
     if (!user || user.status !== 'ACTIVE') return;
     const msg = { subject: d.title, body: d.body, data: d.data };
-    if (d.email && user.email) await this.email.send({ to: user.email, ...msg });
+    // Email: the person's master switch, then their choice for this type of notification.
+    if (d.email && user.email && user.emailNotifications) {
+      await this.email
+        .send({ to: user.email, ...msg, locale: user.preferredLanguage, ...this.emailLinks(d.userId, d.data?.url) })
+        .catch((e) => this.log.warn(`Email to user ${d.userId} failed: ${(e as Error).message}`));
+    }
     if (d.push) {
       for (const dev of user.pushDevices) {
         // One phone failing must not stop the others (or email/SMS).

@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Linking, Switch, View } from 'react-native';
 import { CitySelect } from '@/components/domain';
 import { useTheme } from '@/components/theme';
@@ -20,7 +20,12 @@ export default function Settings() {
   const { me, reload, logout } = useAuth();
   const prefs = useApi<any[]>('/notifications/preferences');
   const alerts = useApi<{ professionalId: string; name: string }[]>('/availability/alerts/mine');
+  const emailQ = useApi<{ enabled: boolean; email: string | null; serviceConnected: boolean }>('/notifications/email');
+  const setEmail = async (enabled: boolean) => { emailQ.setData({ ...emailQ.data!, enabled }); try { emailQ.setData(await api('/notifications/email', { method: 'PUT', body: { enabled } })); } catch (e) { setMsg({ tone: 'red', text: (e as Error).message }); emailQ.reload(); } };
+  const testEmail = () => wrap(async () => { const r = await api<any>('/notifications/email/test', { method: 'POST' }); if (!r.sent) throw new Error(t('Add an email address to your account first')); }, t('Test email sent to {email}. Check your inbox (and spam folder).', { email: emailQ.data?.email ?? '' }));
   const [p, setP] = useState({ name: me?.name ?? '', city: me?.city ?? '', addressText: me?.addressText ?? '' });
+  // Fill the form once the account has loaded (opening Settings directly).
+  useEffect(() => { if (me) setP((x) => (x.name ? x : { name: me.name ?? '', city: me.city ?? '', addressText: me.addressText ?? '' })); }, [me?.id]);
   const [msg, setMsg] = useState<{ tone: 'green' | 'red'; text: string } | null>(null);
   const wrap = (fn: () => Promise<unknown>, ok: string) => fn().then(() => setMsg({ tone: 'green', text: ok })).catch((e) => setMsg({ tone: 'red', text: e.message }));
   const togglePush = (type: string, v: boolean) => {
@@ -37,6 +42,20 @@ export default function Settings() {
           <Field label={t('City')}><CitySelect value={p.city} onChange={(city) => setP({ ...p, city })} allowEmpty /></Field>
           <Field label={t('Address')} hint={t('Pre-filled when you post requests. Never shown publicly.')}><Input value={p.addressText} onChangeText={(addressText) => setP({ ...p, addressText })} /></Field>
           <Button title={t('Save profile')} onPress={() => wrap(async () => { await api('/users/me', { method: 'PATCH', body: { ...p, city: p.city || undefined } }); await reload(); }, t('Profile saved.'))} />
+        </Card>
+      </Section>
+      <Section title={`✉️ ${t('Email notifications')}`}>
+        <Card>
+          {!emailQ.data ? <Loader /> : (
+            <>
+              <Row style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
+                <Text style={{ flex: 1 }}>{t('Email notifications')}</Text>
+                <Switch value={emailQ.data.enabled} onValueChange={setEmail} trackColor={{ true: th.brand }} thumbColor="#fff" {...({ activeThumbColor: '#fff' } as object)} accessibilityLabel={t('Email notifications')} testID="email-switch" />
+              </Row>
+              <Text variant="small">{emailQ.data.enabled ? t('We email you about new requests, offers, messages and other updates at {email}.', { email: emailQ.data.email ?? '—' }) : t('Emails are off. You still get notifications in the app and on your phone.')}</Text>
+              {emailQ.data.enabled && <Button small variant="outline" title={t('Send me a test email')} onPress={testEmail} />}
+            </>
+          )}
         </Card>
       </Section>
       <Section title={`${t('Notifications')} · ${t('Push')}`}>

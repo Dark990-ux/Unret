@@ -40,8 +40,21 @@ services:
       PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-mock}
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      # Email: by default every email goes to the local Mailpit inbox (http://localhost:8025).
+      # For real delivery set SMTP_* in a .env file next to this file (see docs/email.md).
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      EMAIL_FROM: ${EMAIL_FROM:-UNRET <no-reply@unret.ro>}
+      PUBLIC_WEB_URL: ${PUBLIC_WEB_URL:-http://localhost:3000}
     volumes: [uploads:/data/uploads]
     ports: ["4000:4000"]
+
+  # Catches all emails locally so you can read them in the browser: http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:v1.21
+    ports: ["8025:8025"]
 
   web:
     build: { context: ., target: web }

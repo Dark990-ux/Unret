@@ -12,6 +12,7 @@ import { useApi } from '@/lib/hooks';
 import { LOCALES, useT } from '@/lib/i18n';
 import { AvailabilityAlertsCard } from '@/components/alerts-card';
 import { DesktopNotificationsToggle } from '@/components/notify';
+import { EmailNotificationsSwitch } from '@/components/email-settings';
 
 export default function Page() {
   return <RequireAuth><Settings /></RequireAuth>;
@@ -26,6 +27,8 @@ const NOTIF_LABELS: Record<string, string> = {
 };
 
 function Settings() {
+  const [emailOn, setEmailOn] = useState(true);
+  useEffect(() => { api<any>('/notifications/email').then((r) => setEmailOn(r.enabled)).catch(() => undefined); }, []);
   const { t, setLocale } = useT();
   const { me, reload, logout } = useAuth();
   const router = useRouter();
@@ -79,6 +82,7 @@ function Settings() {
         <Card id="notifications" className="p-5 sm:p-6">
           <h2 className="font-semibold text-ink dark:text-white">{t('Notifications')}</h2>
           <p className="mb-4 text-sm text-ink-muted">{t('Essential notifications (e.g. accepted offers, cancellations, payments) are always sent.')}</p>
+          <EmailNotificationsSwitch onChange={setEmailOn} />
           <div className="mb-4"><DesktopNotificationsToggle /></div>
           {!prefs.data ? <PageLoader /> : (
             <div className="overflow-x-auto">
@@ -90,7 +94,7 @@ function Settings() {
                       <td className="py-2">{t(NOTIF_LABELS[p.type] ?? p.type)}{p.essential && <span className="ml-1 text-xs text-ink-muted">({t('essential')})</span>}</td>
                       {(['inApp', 'email', 'push', 'sms'] as const).map((ch) => (
                         <td key={ch} className="py-2 text-center">
-                          <input type="checkbox" aria-label={`${p.type} ${ch}`} className="h-4 w-4 accent-brand-700" checked={p[ch]} disabled={p.essential && ch !== 'sms'}
+                          <input type="checkbox" aria-label={`${p.type} ${ch}`} className="h-4 w-4 accent-brand-700" checked={ch === 'email' && !emailOn ? false : p[ch]} disabled={(p.essential && ch !== 'sms') || (ch === 'email' && !emailOn)}
                             onChange={(e) => { const next = [...prefs.data!]; next[i] = { ...p, [ch]: e.target.checked }; prefs.setData(next); }} />
                         </td>
                       ))}

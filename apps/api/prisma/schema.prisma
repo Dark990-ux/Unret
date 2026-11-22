@@ -215,25 +215,27 @@ model Country {
 // ───────────────────────── Identity ─────────────────────────
 
 model User {
-  id                String        @id @default(uuid())
-  email             String?       @unique
-  phone             String?       @unique
-  passwordHash      String
-  name              String
-  role              Role          @default(USER)
-  status            AccountStatus @default(ACTIVE)
-  countryCode       String        @db.Char(2)
-  preferredLanguage String        @default("ro")
-  avatarKey         String?
-  addressText       String?
-  city              String?
-  mfaEnabled        Boolean       @default(false)
-  mfaSecret         String?
-  termsAcceptedAt   DateTime
-  lastLoginAt       DateTime?
-  suspendedReason   String?
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  id                 String        @id @default(uuid())
+  email              String?       @unique
+  phone              String?       @unique
+  passwordHash       String
+  name               String
+  role               Role          @default(USER)
+  status             AccountStatus @default(ACTIVE)
+  countryCode        String        @db.Char(2)
+  preferredLanguage  String        @default("ro")
+  /// Master switch for notification emails (per-type choices live in NotificationPreference).
+  emailNotifications Boolean       @default(true)
+  avatarKey          String?
+  addressText        String?
+  city               String?
+  mfaEnabled         Boolean       @default(false)
+  mfaSecret          String?
+  termsAcceptedAt    DateTime
+  lastLoginAt        DateTime?
+  suspendedReason    String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
 
   country               Country                  @relation(fields: [countryCode], references: [code])
   professional          ProfessionalProfile?
