@@ -4,8 +4,9 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { api } from './api';
 
+// While the app is open, UNRET's own banner shows the notification (no duplicate system alert).
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({ shouldShowAlert: true, shouldPlaySound: true, shouldSetBadge: true }),
+  handleNotification: async () => ({ shouldShowAlert: false, shouldPlaySound: false, shouldSetBadge: true }),
 });
 
 /** Asks permission and registers the Expo push token with the API (POST /notifications/devices). */

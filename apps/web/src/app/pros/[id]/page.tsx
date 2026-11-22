@@ -6,6 +6,7 @@ import { Clock, Flag, Heart, Languages, MapPin, MessageSquare, Briefcase, Wifi, 
 import { AvailabilityCalendar } from '@/components/calendar';
 import { PriceHint, Rating, VerificationBadges, WEEKDAYS, Badges } from '@/components/domain';
 import { ReportButton } from '@/components/report';
+import { AvailabilityAlertButton } from '@/components/notify';
 import { Alert, Avatar, Badge, Button, Card, Container, Empty, PageLoader, Stars } from '@/components/ui-exports';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -183,6 +184,7 @@ export default function ProfilePage() {
               {chatErr && <div className="w-full"><Alert>{chatErr}</Alert></div>}
               <Button variant="outline" onClick={toggleSave} aria-pressed={p.saved}><Heart className={p.saved ? 'h-4 w-4 fill-red-500 text-red-500' : 'h-4 w-4'} />{p.saved ? t('Saved') : t('Save')}</Button>
             </div>
+            <AvailabilityAlertButton professionalId={p.id} name={p.displayName} />
             <dl className="space-y-2 border-t border-surface-line pt-4 text-sm dark:border-white/10">
               <div className="flex justify-between"><dt className="text-ink-muted">{t('Jobs completed on UNRET')}</dt><dd className="font-medium">{p.stats.completedJobs}</dd></div>
               <div className="flex justify-between"><dt className="text-ink-muted">{t('Average response time')}</dt><dd className="font-medium">{responseTime(p.stats.avgResponseMinutes) ?? '—'}</dd></div>

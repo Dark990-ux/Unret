@@ -250,6 +250,7 @@ model User {
   ownedCompanies        Company[]                @relation("CompanyOwner")
   companyMemberships    CompanyMember[]
   savedProfessionals    SavedProfessional[]
+  availabilityAlerts    AvailabilityAlert[]
   auditLogs             AuditLog[]               @relation("AuditActor")
   verificationsReviewed Verification[]           @relation("VerificationReviewer")
   disputesOpened        Dispute[]                @relation("DisputeOpener")
@@ -330,6 +331,7 @@ model ProfessionalProfile {
   conversations            Conversation[]             @relation("ProfessionalConversations")
   reviews                  Review[]                   @relation("ReviewSubject")
   savedBy                  SavedProfessional[]
+  availabilityAlerts       AvailabilityAlert[]
   subscriptions            ProfessionalSubscription[]
   directRequests           ServiceRequest[]           @relation("DirectRequests")
 
@@ -869,6 +871,20 @@ model Review {
   professional ProfessionalProfile @relation("ReviewSubject", fields: [professionalId], references: [id])
 
   @@index([professionalId, status, createdAt])
+}
+
+/// "Notify me when X is free": one-shot alert, removed once the customer has been told.
+model AvailabilityAlert {
+  id             String   @id @default(uuid())
+  userId         String
+  professionalId String
+  createdAt      DateTime @default(now())
+
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  professional ProfessionalProfile @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, professionalId])
+  @@index([professionalId])
 }
 
 model SavedProfessional {

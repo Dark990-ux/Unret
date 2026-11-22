@@ -56,3 +56,8 @@ export function useSignal(name: string, fn: () => void) {
     return () => { local.get(name)!.delete(f); };
   }, [name]);
 }
+
+// The browser preview has no server connection; it replays events through this hook.
+if (typeof window !== 'undefined' && (window as any).__UNRET_PREVIEW__) {
+  (window as any).__unretDispatch = (event: string, payload: unknown) => handlers.get(event)?.forEach((fn) => fn(payload));
+}

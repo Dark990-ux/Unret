@@ -2,6 +2,7 @@ import { Injectable, Logger, Module } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { MATCH_EXPANSION_DELAY_HOURS, MATCH_MIN_OFFERS } from '@unret/shared';
 import { PrismaService } from '../../common/prisma.service';
+import { AvailabilityAlertsService } from '../availability/alerts.service';
 import { JobsService } from '../jobs/jobs.service';
 import { MatchingService } from '../matching/matching.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -15,7 +16,14 @@ export class SchedulerService {
   private log = new Logger(SchedulerService.name);
   private enabled = process.env.SCHEDULER_ENABLED !== 'false' && process.env.NODE_ENV !== 'test';
 
-  constructor(private prisma: PrismaService, private matching: MatchingService, private jobs: JobsService, private notifications: NotificationsService) {}
+  constructor(private prisma: PrismaService, private matching: MatchingService, private jobs: JobsService, private notifications: NotificationsService, private alerts: AvailabilityAlertsService) {}
+
+  /** "Notify me when free": time passing can free a professional (e.g. a fully booked week is over). */
+  @Cron(CronExpression.EVERY_HOUR)
+  async availabilityAlerts() {
+    if (!this.enabled) return;
+    await this.alerts.sweep();
+  }
 
   /** Expire requests and offers past their deadlines. */
   @Cron(CronExpression.EVERY_10_MINUTES)

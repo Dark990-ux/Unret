@@ -7,6 +7,7 @@ import { absUrl, api } from '@/lib/api';
 import { date } from '@/lib/format';
 import { useApi } from '@/lib/hooks';
 import { openChat } from '@/lib/chat';
+import { AvailabilityAlertButton } from '@/components/notify';
 import { useT } from '@/lib/i18n';
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -37,6 +38,7 @@ export default function ProProfile() {
         <Button title={t('Message')} variant="outline" onPress={message} style={{ flex: 1 }} />
         <Button title={p.saved ? `♥ ${t('Saved')}` : `♡ ${t('Save')}`} variant="outline" onPress={toggleSave} style={{ flex: 1 }} />
       </Row>
+      <AvailabilityAlertButton professionalId={p.id} name={p.displayName} />
       <Row style={{ flexWrap: 'nowrap' }}>
         <Card style={{ flex: 1 }}><Text variant="small">{t('Jobs completed on UNRET')}</Text><Text variant="h2">{p.stats.completedJobs}</Text></Card>
         <Card style={{ flex: 1 }}><Text variant="small">{t('Member since')}</Text><Text variant="h2">{date(p.stats.memberSince, intl)}</Text></Card>

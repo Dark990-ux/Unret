@@ -72,6 +72,8 @@ export const NotificationType = {
   REVIEW_RECEIVED: 'REVIEW_RECEIVED',
   VERIFICATION_UPDATED: 'VERIFICATION_UPDATED',
   DISPUTE_UPDATED: 'DISPUTE_UPDATED',
+  /** "Notify me when X is free" fired. */
+  AVAILABILITY_OPENED: 'AVAILABILITY_OPENED',
 } as const;
 export type NotificationType = (typeof NotificationType)[keyof typeof NotificationType];
 

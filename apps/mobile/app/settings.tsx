@@ -11,7 +11,7 @@ import { useT } from '@/lib/i18n';
 
 const LABELS: Record<string, string> = {
   NEW_MATCHING_REQUEST: 'New matching request', NEW_OFFER: 'New offer', NEW_MESSAGE: 'New message', APPOINTMENT_APPROACHING: 'Appointment reminder',
-  JOB_STATUS_CHANGED: 'Job updates', REVIEW_RECEIVED: 'Review received', PAYMENT_TO_CONFIRM: 'Payment to confirm', OFFER_REVISED: 'Offer revised', OFFER_REJECTED: 'Offer declined',
+  JOB_STATUS_CHANGED: 'Job updates', REVIEW_RECEIVED: 'Review received', PAYMENT_TO_CONFIRM: 'Payment to confirm', OFFER_REVISED: 'Offer revised', OFFER_REJECTED: 'Offer declined', AVAILABILITY_OPENED: 'A professional you follow is free',
 };
 
 export default function Settings() {
@@ -19,6 +19,7 @@ export default function Settings() {
   const th = useTheme();
   const { me, reload, logout } = useAuth();
   const prefs = useApi<any[]>('/notifications/preferences');
+  const alerts = useApi<{ professionalId: string; name: string }[]>('/availability/alerts/mine');
   const [p, setP] = useState({ name: me?.name ?? '', city: me?.city ?? '', addressText: me?.addressText ?? '' });
   const [msg, setMsg] = useState<{ tone: 'green' | 'red'; text: string } | null>(null);
   const wrap = (fn: () => Promise<unknown>, ok: string) => fn().then(() => setMsg({ tone: 'green', text: ok })).catch((e) => setMsg({ tone: 'red', text: e.message }));
@@ -45,6 +46,17 @@ export default function Settings() {
             <Row key={x.type} style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
               <Text style={{ flex: 1 }}>{t(LABELS[x.type])}</Text>
               <Switch value={x.push} onValueChange={(v) => togglePush(x.type, v)} trackColor={{ true: th.brand }} accessibilityLabel={t(LABELS[x.type])} />
+            </Row>
+          ))}
+        </Card>
+      </Section>
+      <Section title={`🔔 ${t('Notify me when free')}`}>
+        <Card>
+          <Text variant="small">{t('Busy professionals you follow. We notify you once as soon as they have free days, then the alert switches off.')}</Text>
+          {!alerts.data?.length ? <Text variant="small">{t('No alerts yet. Open a professional’s profile and tap “Notify me when free”.')}</Text> : alerts.data.map((a) => (
+            <Row key={a.professionalId} style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
+              <Text style={{ flex: 1, color: th.brand, fontWeight: '600' }} onPress={() => router.push(`/pros/${a.professionalId}`)}>{a.name}</Text>
+              <Button small variant="ghost" title={t('Cancel alert')} onPress={async () => { await api(`/availability/${a.professionalId}/alert`, { method: 'DELETE' }); alerts.reload(); }} />
             </Row>
           ))}
         </Card>

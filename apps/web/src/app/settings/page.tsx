@@ -10,6 +10,8 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useApi } from '@/lib/hooks';
 import { LOCALES, useT } from '@/lib/i18n';
+import { AvailabilityAlertsCard } from '@/components/alerts-card';
+import { DesktopNotificationsToggle } from '@/components/notify';
 
 export default function Page() {
   return <RequireAuth><Settings /></RequireAuth>;
@@ -20,7 +22,7 @@ const NOTIF_LABELS: Record<string, string> = {
   OFFER_MODIFICATION_REQUESTED: 'Offer changes requested', OFFER_REVISED: 'Offer revised', NEW_MESSAGE: 'New message',
   APPOINTMENT_APPROACHING: 'Appointment reminder', JOB_STATUS_CHANGED: 'Job updates', JOB_CHANGE_PROPOSED: 'Proposed job changes',
   JOB_CANCELLED: 'Job cancelled', PAYMENT_COMPLETED: 'Payment completed', PAYMENT_TO_CONFIRM: 'Payment to confirm', REVIEW_RECEIVED: 'Review received',
-  VERIFICATION_UPDATED: 'Verification result', DISPUTE_UPDATED: 'Dispute updates',
+  VERIFICATION_UPDATED: 'Verification result', DISPUTE_UPDATED: 'Dispute updates', AVAILABILITY_OPENED: 'A professional you follow is free',
 };
 
 function Settings() {
@@ -77,6 +79,7 @@ function Settings() {
         <Card id="notifications" className="p-5 sm:p-6">
           <h2 className="font-semibold text-ink dark:text-white">{t('Notifications')}</h2>
           <p className="mb-4 text-sm text-ink-muted">{t('Essential notifications (e.g. accepted offers, cancellations, payments) are always sent.')}</p>
+          <div className="mb-4"><DesktopNotificationsToggle /></div>
           {!prefs.data ? <PageLoader /> : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[480px] text-sm">
@@ -99,6 +102,8 @@ function Settings() {
             </div>
           )}
         </Card>
+
+        <AvailabilityAlertsCard />
 
         <Card className="space-y-4 p-5 sm:p-6">
           <h2 className="flex items-center gap-2 font-semibold text-ink dark:text-white"><KeyRound className="h-4 w-4" />{t('Password')}</h2>

@@ -5,6 +5,7 @@ import { IsArray, IsBoolean, IsDateString, IsInt, IsOptional, IsString, Matches,
 import { AuthUser, CurrentUser, Public } from '../../common/decorators';
 import { requirePro } from '../../common/guards';
 import { PrismaService } from '../../common/prisma.service';
+import { AvailabilityAlertsService } from './alerts.service';
 import { AvailabilityService } from './availability.service';
 
 const HM = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -37,7 +38,13 @@ class SettingsDto {
 @ApiTags('availability')
 @Controller('availability')
 export class AvailabilityController {
-  constructor(private availability: AvailabilityService, private prisma: PrismaService) {}
+  constructor(private availability: AvailabilityService, private prisma: PrismaService, private alerts: AvailabilityAlertsService) {}
+
+  /** After a change that can free up time: tell customers waiting for this professional (in the background). */
+  private freed<T>(pid: string, result: T): T {
+    void this.alerts.check(pid);
+    return result;
+  }
 
   @ApiBearerAuth()
   @Get('me')
@@ -57,8 +64,9 @@ export class AvailabilityController {
 
   @ApiBearerAuth()
   @Put('me/rules')
-  setRules(@CurrentUser() user: AuthUser, @Body() dto: RulesDto) {
-    return this.availability.setRules(requirePro(user), dto.rules);
+  async setRules(@CurrentUser() user: AuthUser, @Body() dto: RulesDto) {
+    const pid = requirePro(user);
+    return this.freed(pid, await this.availability.setRules(pid, dto.rules));
   }
 
   @ApiBearerAuth()
@@ -67,11 +75,12 @@ export class AvailabilityController {
     if (dto.timezone) {
       try { new Intl.DateTimeFormat('en', { timeZone: dto.timezone }); } catch { dto.timezone = undefined; }
     }
-    return this.prisma.professionalProfile.update({
-      where: { id: requirePro(user) },
+    const pid = requirePro(user);
+    return this.freed(pid, await this.prisma.professionalProfile.update({
+      where: { id: pid },
       data: dto,
       select: { acceptingRequests: true, emergencyAvailable: true, serviceRadiusKm: true, timezone: true },
-    });
+    }));
   }
 
   @ApiBearerAuth()
@@ -82,20 +91,49 @@ export class AvailabilityController {
 
   @ApiBearerAuth()
   @Post('me/periods')
-  addPeriod(@CurrentUser() user: AuthUser, @Body() dto: PeriodDto) {
-    return this.availability.addPeriod(requirePro(user), dto.startDate, dto.endDate, dto.note);
+  async addPeriod(@CurrentUser() user: AuthUser, @Body() dto: PeriodDto) {
+    const pid = requirePro(user);
+    return this.freed(pid, await this.availability.addPeriod(pid, dto.startDate, dto.endDate, dto.note));
   }
 
   @ApiBearerAuth()
   @Delete('me/periods/:id')
-  removePeriod(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.availability.removePeriod(requirePro(user), id);
+  async removePeriod(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    const pid = requirePro(user);
+    return this.freed(pid, await this.availability.removePeriod(pid, id));
   }
 
   @ApiBearerAuth()
   @Delete('me/blocks/:id')
-  removeBlock(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.availability.removeBlock(requirePro(user), id);
+  async removeBlock(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    const pid = requirePro(user);
+    return this.freed(pid, await this.availability.removeBlock(pid, id));
+  }
+
+  // ── "Notify me when free" (customers) ──
+
+  @ApiBearerAuth()
+  @Get('alerts/mine')
+  myAlerts(@CurrentUser() user: AuthUser) {
+    return this.alerts.mine(user);
+  }
+
+  @ApiBearerAuth()
+  @Get(':professionalId/alert')
+  alertStatus(@CurrentUser() user: AuthUser, @Param('professionalId') id: string) {
+    return this.alerts.status(user, id);
+  }
+
+  @ApiBearerAuth()
+  @Post(':professionalId/alert')
+  subscribe(@CurrentUser() user: AuthUser, @Param('professionalId') id: string) {
+    return this.alerts.subscribe(user, id);
+  }
+
+  @ApiBearerAuth()
+  @Delete(':professionalId/alert')
+  unsubscribe(@CurrentUser() user: AuthUser, @Param('professionalId') id: string) {
+    return this.alerts.unsubscribe(user, id);
   }
 
   @ApiBearerAuth()

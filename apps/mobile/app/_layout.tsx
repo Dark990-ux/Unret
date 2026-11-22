@@ -8,6 +8,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useTheme } from '@/components/theme';
 import { AuthProvider } from '@/lib/auth';
 import { I18nProvider, useT } from '@/lib/i18n';
+import { NotificationBanner, usePushNavigation } from '@/components/notify';
 
 function BackButton() {
   const t = useTheme();
@@ -24,6 +25,7 @@ function BackButton() {
 function Nav() {
   const t = useTheme();
   const { t: tr } = useT();
+  usePushNavigation();
   return (
     <>
       <StatusBar style="auto" />
@@ -43,6 +45,7 @@ function Nav() {
         <Stack.Screen name="notifications" options={{ title: tr('Notifications') }} />
         <Stack.Screen name="settings" options={{ title: tr('Settings') }} />
       </Stack>
+      <NotificationBanner />
     </>
   );
 }

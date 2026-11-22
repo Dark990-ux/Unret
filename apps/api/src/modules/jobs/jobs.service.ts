@@ -6,6 +6,7 @@ import { AuthUser } from '../../common/decorators';
 import { pageResult, paginate } from '../../common/pagination';
 import { PrismaService } from '../../common/prisma.service';
 import { AvailabilityService } from '../availability/availability.service';
+import { AvailabilityAlertsService } from '../availability/alerts.service';
 import { CategoriesService } from '../categories/categories.service';
 import { ConversationsService } from '../conversations/conversations.service';
 import { StorageService } from '../files/storage.service';
@@ -68,6 +69,7 @@ export class JobsService {
     private storage: StorageService,
     private audit: AuditService,
     private payouts: PayoutsService,
+    private alerts: AvailabilityAlertsService,
   ) {}
 
   /** Resolves the caller's role on a job: customer, the professional (or their company team), or admin. */
@@ -292,6 +294,7 @@ export class JobsService {
       await this.audit.log({ actorId: user.id, action: 'job.cancel', entityType: 'Job', entityId: jobId, metadata: { role, reason } }, tx);
     });
     await this.payouts.refundHeldForJob(jobId, `Job cancelled by the ${role}`);
+    void this.alerts.check(job.professionalId); // the freed time may be what someone is waiting for
     await this.professionals.recomputeReputation(job.professionalId);
     await this.notifications.notify({
       userId: otherUserId, type: 'JOB_CANCELLED', title: 'Job cancelled',
@@ -414,7 +417,7 @@ export class JobsService {
       await this.audit.log({ actorId: admin.id, action: 'admin.dispute.resolve', entityType: 'Dispute', entityId: disputeId, metadata: { outcome, resolution } }, tx);
     });
     if (outcome === 'COMPLETED') await this.payouts.releaseForJob(d.jobId);
-    if (outcome === 'CANCELLED') await this.payouts.refundHeldForJob(d.jobId, 'Dispute resolved by cancelling the job');
+    if (outcome === 'CANCELLED') { await this.payouts.refundHeldForJob(d.jobId, 'Dispute resolved by cancelling the job'); void this.alerts.check(d.job.professionalId); }
     await this.professionals.recomputeReputation(d.job.professionalId);
     for (const uid of [d.job.customerId, d.job.professional.userId])
       await this.notifications.notify({ userId: uid, type: 'DISPUTE_UPDATED', title: 'Dispute resolved', body: `"${d.job.request.title}": ${resolution}`, data: { jobId: d.jobId, url: `/jobs/${d.jobId}` } });

@@ -109,7 +109,7 @@ export class ConversationsService {
     });
     const hasMore = items.length > PAGE;
     if (hasMore) items.pop();
-    if (!before) await this.markRead(conversationId, isCustomer, otherUserId);
+    if (!before) await this.markRead(conversationId, isCustomer, otherUserId, user.id);
     const full = await this.prisma.conversation.findUniqueOrThrow({
       where: { id: c.id },
       include: {
@@ -154,8 +154,9 @@ export class ConversationsService {
       userId: otherUserId,
       type: 'NEW_MESSAGE',
       title: `New message from ${msg.sender?.name ?? 'UNRET'}`,
-      body: msg.body.slice(0, 140) || 'Attachment',
+      body: msg.body.slice(0, 140) || '📎 Attachment',
       data: { conversationId, url: `/messages/${conversationId}` },
+      collapse: { key: `conversation:${conversationId}`, title: (n) => `${n} new messages from ${msg.sender?.name ?? 'UNRET'}` },
     });
     return payload;
   }
@@ -170,13 +171,15 @@ export class ConversationsService {
   /** Marks the conversation read for this user and tells the other person ("Seen"). */
   async read(conversationId: string, user: AuthUser) {
     const { isCustomer, otherUserId } = await this.assertParticipant(conversationId, user);
-    const readAt = await this.markRead(conversationId, isCustomer, otherUserId);
+    const readAt = await this.markRead(conversationId, isCustomer, otherUserId, user.id);
     return { conversationId, readAt };
   }
 
-  private async markRead(conversationId: string, isCustomer: boolean, otherUserId: string) {
+  private async markRead(conversationId: string, isCustomer: boolean, otherUserId: string, readerId: string) {
     const readAt = new Date();
     await this.prisma.conversation.update({ where: { id: conversationId }, data: isCustomer ? { customerLastReadAt: readAt } : { professionalLastReadAt: readAt } });
+    // The chat is open, so its "new message" notification is read too.
+    await this.prisma.notification.updateMany({ where: { userId: readerId, type: 'NEW_MESSAGE', readAt: null, data: { path: ['conversationId'], equals: conversationId } }, data: { readAt } });
     this.realtime.emitToUser(otherUserId, 'read', { conversationId, readAt });
     return readAt;
   }
