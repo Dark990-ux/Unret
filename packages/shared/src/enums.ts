@@ -74,6 +74,10 @@ export const NotificationType = {
   DISPUTE_UPDATED: 'DISPUTE_UPDATED',
   /** "Notify me when X is free" fired. */
   AVAILABILITY_OPENED: 'AVAILABILITY_OPENED',
+  /** A professional reached their plan's daily number of new requests. */
+  PLAN_LIMIT_REACHED: 'PLAN_LIMIT_REACHED',
+  /** Subscription started, renewed, payment failed or ended. */
+  SUBSCRIPTION_UPDATED: 'SUBSCRIPTION_UPDATED',
 } as const;
 export type NotificationType = (typeof NotificationType)[keyof typeof NotificationType];
 

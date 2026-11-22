@@ -7,6 +7,7 @@ import { Badge, Button, Card, Empty, Loader, Row, Screen, Section, StatusBadge, 
 import { useAuth } from '@/lib/auth';
 import { dateTime, money, timeAgo } from '@/lib/format';
 import { useApi } from '@/lib/hooks';
+import { UsageCard } from '@/components/plans';
 import { InboxCard } from '@/components/cards';
 import { useT } from '@/lib/i18n';
 
@@ -129,6 +130,7 @@ function ProHome() {
   const th = useTheme();
   const pro = useApi<any>('/professionals/me');
   const inbox = useApi<{ items: any[]; total: number }>('/requests/inbox', { filter: 'new', pageSize: 5 });
+  const plan = useApi<any>('/subscriptions/summary');
   const jobs = useApi<{ items: any[] }>('/jobs', { as: 'professional', filter: 'active', pageSize: 5 });
   if (!pro.data) return <Loader />;
   const p = pro.data;
@@ -148,6 +150,7 @@ function ProHome() {
           <Card style={{ flex: 1 }}><Text variant="small">{t('New requests')}</Text><Text variant="title">{inbox.data?.total ?? '—'}</Text></Card>
           <Card style={{ flex: 1 }}><Text variant="small">{t('Rating')}</Text><Text variant="title">{p.ratingCount ? p.ratingAvg.toFixed(1) : '—'}</Text><Text variant="small">{t('{n} reviews', { n: p.ratingCount })}</Text></Card>
         </Row>
+        <UsageCard s={plan.data} compact />
         <Section title={t('New requests for you')} action={<Text color={th.brand} onPress={() => router.push('/(tabs)/requests')}>{t('See all')}</Text>}>
           {inbox.loading ? <Loader /> : !inbox.data?.items.length ? <Text variant="small">{t('No new requests right now. We notify you as soon as a matching request is posted.')}</Text> :
             inbox.data.items.map((r) => <InboxCard key={r.requestId} r={r} />)}

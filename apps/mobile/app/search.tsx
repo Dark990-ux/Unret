@@ -35,7 +35,7 @@ export default function Search() {
         items={[{ value: 'relevance', label: t('Best match') }, { value: 'rating', label: t('Rating') }, { value: 'distance', label: t('Distance') }, { value: 'price', label: t('Price') }]} />
       <Segmented value={f.verified} onChange={(verified) => { const n = { ...f, verified }; setF(n); setQuery(n); }}
         items={[{ value: '', label: t('Any') }, { value: 'identity', label: t('Identity verified') }, { value: 'qualification', label: t('Qualification verified') }]} />
-      <Text variant="small">{res.data ? t('{n} professionals found', { n: res.data.total }) : ' '} · {t('Ranked by relevance, distance, availability, reliability and rating — never by paid placement.')}</Text>
+      <Text variant="small">{res.data ? t('{n} professionals found', { n: res.data.total }) : ' '} · {t('Ranked by relevance, distance, availability, reliability and rating. Professionals with a paid plan are shown higher and marked Promoted.')}</Text>
       {res.loading ? <Loader /> : !res.data?.items.length ? (
         <Empty title={t('No professionals match your search')} text={t('Try a nearby city or broader category, or post a request and let professionals contact you.')} action={<Button title={t('Post a request')} onPress={() => router.push('/requests/new')} />} />
       ) : res.data.items.map((p) => <ProCard key={p.id} p={p} onPress={() => router.push(`/pros/${p.id}`)} />)}

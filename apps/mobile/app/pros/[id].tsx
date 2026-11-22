@@ -8,6 +8,7 @@ import { date } from '@/lib/format';
 import { useApi } from '@/lib/hooks';
 import { openChat } from '@/lib/chat';
 import { AvailabilityAlertButton } from '@/components/notify';
+import { PlanBadge } from '@/components/plans';
 import { useT } from '@/lib/i18n';
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -27,6 +28,7 @@ export default function ProProfile() {
       <Card style={{ alignItems: 'center', gap: 8 }}>
         <Avatar name={p.displayName} url={absUrl(p.avatarUrl)} size={88} />
         <Text variant="title" style={{ textAlign: 'center' }}>{p.displayName}</Text>
+        <PlanBadge badge={p.planBadge} />
         {p.headline && <Text variant="small" style={{ textAlign: 'center' }}>{p.headline}</Text>}
         <Rating avg={p.stats.ratingAvg} count={p.stats.ratingCount} />
         <Text variant="small">📍 {p.city} · {t('up to {n} km', { n: p.serviceRadiusKm })}{p.experienceYears != null ? ` · ${t('{n} years experience', { n: p.experienceYears })}` : ''}</Text>

@@ -23,7 +23,7 @@ const NOTIF_LABELS: Record<string, string> = {
   OFFER_MODIFICATION_REQUESTED: 'Offer changes requested', OFFER_REVISED: 'Offer revised', NEW_MESSAGE: 'New message',
   APPOINTMENT_APPROACHING: 'Appointment reminder', JOB_STATUS_CHANGED: 'Job updates', JOB_CHANGE_PROPOSED: 'Proposed job changes',
   JOB_CANCELLED: 'Job cancelled', PAYMENT_COMPLETED: 'Payment completed', PAYMENT_TO_CONFIRM: 'Payment to confirm', REVIEW_RECEIVED: 'Review received',
-  VERIFICATION_UPDATED: 'Verification result', DISPUTE_UPDATED: 'Dispute updates', AVAILABILITY_OPENED: 'A professional you follow is free',
+  VERIFICATION_UPDATED: 'Verification result', DISPUTE_UPDATED: 'Dispute updates', AVAILABILITY_OPENED: 'A professional you follow is free', PLAN_LIMIT_REACHED: 'Daily request limit reached', SUBSCRIPTION_UPDATED: 'Plan and billing updates',
 };
 
 function Settings() {

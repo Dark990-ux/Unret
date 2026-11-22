@@ -28,8 +28,21 @@ export interface Payee {
   holderName?: string;
 }
 
+export type ProviderSubStatus = 'PENDING' | 'ACTIVE' | 'PAST_DUE' | 'CANCELLED';
+export interface ProviderSubscription {
+  ref: string;
+  status: ProviderSubStatus;
+  currentPeriodEnd: Date;
+  cancelAtPeriodEnd: boolean;
+  /** Our ProfessionalSubscription id, stored on the provider's subscription. */
+  localId?: string | null;
+}
+
 export type ProviderEvent =
   | { kind: 'payment'; reference: string; status: 'SUCCEEDED' | 'FAILED' }
+  | { kind: 'subscription_checkout'; reference: string; subscriptionRef: string | null; localId: string | null }
+  | { kind: 'subscription'; subscription: ProviderSubscription }
+  | { kind: 'subscription_payment_failed'; subscriptionRef: string }
   | { kind: 'payee'; accountRef: string; payoutsEnabled: boolean; detailsSubmitted: boolean }
   | { kind: 'ignored' };
 
@@ -63,6 +76,16 @@ export interface PaymentProvider {
   payeeOnboardingUrl?(accountRef: string, returnUrl: string, refreshUrl: string): Promise<string>;
   payeeStatus?(accountRef: string): Promise<PayeeStatus>;
   payeeDashboardUrl?(accountRef: string): Promise<string>;
+
+  // Recurring plans for professionals (only when the provider supports subscriptions)
+  /** Creates (once) the monthly price for a plan and returns its reference. */
+  ensurePlanPrice?(plan: { code: string; name: string; priceMinor: number; currency: string }): Promise<string>;
+  createSubscriptionCheckout?(input: { priceRef: string; localId: string; professionalId: string; customerEmail?: string | null; returnUrl: string; planName: string }): Promise<{ reference: string; checkoutUrl: string }>;
+  /** Result of a subscription checkout page (null while not completed). */
+  subscriptionFromCheckout?(reference: string): Promise<ProviderSubscription | null>;
+  getSubscription?(ref: string): Promise<ProviderSubscription>;
+  setCancelAtPeriodEnd?(ref: string, cancel: boolean): Promise<ProviderSubscription>;
+  changeSubscriptionPrice?(ref: string, priceRef: string): Promise<ProviderSubscription>;
 }
 
 /** Development provider: simulates a PSP. Payments are confirmed via POST /payments/:id/mock-confirm. */

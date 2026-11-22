@@ -7,6 +7,7 @@ import { citiesFor } from '@unret/shared';
 import { absUrl, api, Purpose, upload } from '@/lib/api';
 import { dateTime } from '@/lib/format';
 import { useT } from '@/lib/i18n';
+import { PlanBadge, PromotedLabel } from './plans';
 import { Avatar, Badge, Button, Card, Input, Row, Select, Stars, Text } from './ui';
 import { radius, useTheme } from './theme';
 import { money } from '@/lib/format';
@@ -72,7 +73,8 @@ export function ProCard({ p, onPress }: { p: any; onPress: () => void }) {
       <Row style={{ flexWrap: 'nowrap', alignItems: 'flex-start' }} gap={12}>
         <Avatar name={p.displayName} url={absUrl(p.avatarUrl)} size={52} />
         <View style={{ flex: 1, gap: 4 }}>
-          <Text variant="h2" numberOfLines={1}>{p.displayName}</Text>
+          <Row gap={6} style={{ flexWrap: 'nowrap' }}><Text variant="h2" numberOfLines={1} style={{ flexShrink: 1 }}>{p.displayName}</Text><PlanBadge badge={p.planBadge} /></Row>
+          {p.promoted && <PromotedLabel />}
           <Text variant="small" numberOfLines={2}>{p.mainService}{p.headline ? ` · ${p.headline}` : ''}</Text>
           <Rating avg={p.ratingAvg} count={p.ratingCount} />
           <Row gap={10}>

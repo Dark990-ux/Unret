@@ -187,7 +187,9 @@ enum MessageKind {
 }
 
 enum SubscriptionStatus {
+  PENDING // waiting for the first payment
   ACTIVE
+  PAST_DUE // a renewal payment failed; still active during the provider's retries
   CANCELLED
   EXPIRED
 }
@@ -325,6 +327,8 @@ model ProfessionalProfile {
   providerPayoutsEnabled   Boolean                    @default(false)
   providerDetailsSubmitted Boolean                    @default(false)
   providerAccountUpdatedAt DateTime?
+  /// Last "daily request limit reached" notice (at most one per day)
+  planLimitNoticeAt        DateTime?
   appointments             Appointment[]
   verifications            Verification[]
   matches                  RequestMatch[]
@@ -616,6 +620,8 @@ model RequestMatch {
   wave            Int? // distribution wave in which this pro was notified
   distanceKm      Float?
   notifiedAt      DateTime?
+  /// Not sent because the professional reached their plan's daily limit
+  limitSkippedAt  DateTime?
   viewedAt        DateTime?
   declinedAt      DateTime?
   createdAt       DateTime  @default(now())
@@ -935,15 +941,19 @@ model Payment {
 }
 
 model SubscriptionPlan {
-  id          String   @id @default(uuid())
-  code        String
-  name        String
-  countryCode String   @db.Char(2)
-  priceMinor  Int
-  currency    String   @db.Char(3)
-  features    Json     @default("{}")
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
+  id               String   @id @default(uuid())
+  code             String
+  name             String
+  countryCode      String   @db.Char(2)
+  priceMinor       Int
+  currency         String   @db.Char(3)
+  /// requestsPerDay (null = unlimited), visibility (0–3), badge, highlights[]
+  features         Json     @default("{}")
+  isActive         Boolean  @default(true)
+  sortOrder        Int      @default(0)
+  /// Recurring price at the payment provider (created on first use)
+  providerPriceRef String?
+  createdAt        DateTime @default(now())
 
   country       Country                    @relation(fields: [countryCode], references: [code])
   subscriptions ProfessionalSubscription[]
@@ -952,12 +962,16 @@ model SubscriptionPlan {
 }
 
 model ProfessionalSubscription {
-  id               String             @id @default(uuid())
-  professionalId   String
-  planId           String
-  status           SubscriptionStatus @default(ACTIVE)
-  currentPeriodEnd DateTime
-  createdAt        DateTime           @default(now())
+  id                String             @id @default(uuid())
+  professionalId    String
+  planId            String
+  status            SubscriptionStatus @default(ACTIVE)
+  currentPeriodEnd  DateTime
+  cancelAtPeriodEnd Boolean            @default(false)
+  provider          String?
+  /// Subscription id at the provider (e.g. Stripe sub_…)
+  providerRef       String?            @unique
+  createdAt         DateTime           @default(now())
 
   professional ProfessionalProfile @relation(fields: [professionalId], references: [id], onDelete: Cascade)
   plan         SubscriptionPlan    @relation(fields: [planId], references: [id])

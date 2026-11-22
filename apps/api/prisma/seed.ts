@@ -190,12 +190,14 @@ async function main() {
   for (const [i, c] of CATEGORIES.entries()) await upsertCategory(c, null, i);
 
   console.log('Seeding subscription plans…');
+  // Professionals pay; prices in EUR per month. requestsPerDay: null = unlimited. visibility: ranking boost 0–3.
   for (const plan of [
-    { code: 'basic', name: 'Basic', priceMinor: 0, features: { teamSeats: 1, analytics: false } },
-    { code: 'pro', name: 'Pro', priceMinor: 4900, features: { teamSeats: 1, analytics: true, portfolioItems: 50 } },
-    { code: 'business', name: 'Business', priceMinor: 14900, features: { teamSeats: 10, analytics: true, sharedCalendar: true } },
+    { code: 'free', name: 'Free', priceMinor: 0, sortOrder: 1, features: { requestsPerDay: 7, visibility: 0, badge: null, highlights: ['Up to 7 new requests per day', 'Public profile and portfolio', 'Unlimited offers and messages'] } },
+    { code: 'standard', name: 'Standard', priceMinor: 599, sortOrder: 2, features: { requestsPerDay: 50, visibility: 1, badge: 'standard', highlights: ['Up to 50 new requests per day', 'Shown higher in search and matching', 'Standard badge on your profile'] } },
+    { code: 'deluxe', name: 'Deluxe', priceMinor: 999, sortOrder: 3, features: { requestsPerDay: 100, visibility: 2, badge: 'deluxe', highlights: ['Up to 100 new requests per day', 'Shown even higher in search and matching', 'Deluxe badge on your profile'] } },
+    { code: 'vip', name: 'VIP', priceMinor: 1999, sortOrder: 4, features: { requestsPerDay: null, visibility: 3, badge: 'vip', highlights: ['Unlimited new requests', 'Top placement in search and matching', 'VIP badge on your profile'] } },
   ])
-    await prisma.subscriptionPlan.upsert({ where: { code_countryCode: { code: plan.code, countryCode: 'RO' } }, create: { ...plan, countryCode: 'RO', currency: 'RON' }, update: {} });
+    await prisma.subscriptionPlan.upsert({ where: { code_countryCode: { code: plan.code, countryCode: 'RO' } }, create: { ...plan, countryCode: 'RO', currency: 'EUR' }, update: {} });
 
   console.log('Seeding users…');
   await user('admin@unret.ro', 'UNRET Admin', { role: 'ADMIN' });

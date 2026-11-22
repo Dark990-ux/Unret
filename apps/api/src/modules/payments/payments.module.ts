@@ -14,6 +14,7 @@ import { JobsService, paymentSummary } from '../jobs/jobs.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PAYMENT_PROVIDER, PayoutsService } from './payouts.service';
 import { StripePaymentProvider } from './stripe.provider';
+import { SubscriptionsService } from '../subscriptions/subscriptions.module';
 import { MockPaymentProvider, PaymentProvider } from './provider';
 
 type Part = 'deposit' | 'balance' | 'full';
@@ -58,6 +59,7 @@ export class PaymentsService {
     private notifications: NotificationsService,
     private audit: AuditService,
     @Inject(PAYMENT_PROVIDER) private provider: PaymentProvider,
+    private subscriptions: SubscriptionsService,
   ) {}
 
   private async summaryFor(job: { id: string; paymentMethod: string; agreedPriceMinor: number; depositMinor: number }) {
@@ -277,6 +279,9 @@ export class PaymentsService {
     if (!ev) throw new BadRequestException('Invalid webhook');
     if (ev.kind === 'payment') await this.markResult(ev.reference, ev.status);
     if (ev.kind === 'payee') await this.updatePayee(ev.accountRef, ev);
+    if (ev.kind === 'subscription_checkout') await this.subscriptions.onProviderCheckout(ev.reference, ev.subscriptionRef, ev.localId);
+    if (ev.kind === 'subscription') await this.subscriptions.onProviderUpdate(ev.subscription);
+    if (ev.kind === 'subscription_payment_failed') await this.subscriptions.onProviderPaymentFailed(ev.subscriptionRef);
     return { received: true };
   }
 
@@ -506,6 +511,6 @@ export class PaymentsController {
       },
     },
   ],
-  exports: [PayoutsService],
+  exports: [PayoutsService, PAYMENT_PROVIDER],
 })
 export class PaymentsModule {}

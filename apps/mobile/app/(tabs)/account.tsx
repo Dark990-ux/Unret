@@ -48,6 +48,7 @@ export default function Account() {
             <Switch value={avail.data.settings.acceptingRequests} onValueChange={toggleAccepting} trackColor={{ true: th.brand }} accessibilityLabel={t('Accepting new requests')} thumbColor="#fff" {...({ activeThumbColor: '#fff' } as object)} />
           </Row>
           <Divider />
+          <Button title={`👑 ${t('Plans')}`} variant="sun" onPress={() => router.push('/pro/plans')} />
           <Button title={t('Calendar & availability')} variant="outline" onPress={() => router.push('/pro/availability')} />
           <Button title={`🏦 ${t('Payout account (IBAN)')}`} variant="outline" onPress={() => router.push('/pro/payout')} />
           <Button title={t('View public profile')} variant="ghost" onPress={() => router.push(`/pros/${me.professional!.id}`)} />

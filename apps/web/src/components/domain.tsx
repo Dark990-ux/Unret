@@ -6,6 +6,7 @@ import { BadgeCheck, Building2, GraduationCap, MapPin, ShieldCheck } from 'lucid
 import { citiesFor } from '@unret/shared';
 import { api } from '@/lib/api';
 import { useT } from '@/lib/i18n';
+import { PlanBadge, PromotedLabel } from './plans';
 import { money } from '@/lib/format';
 import { Avatar, Badge, Card, Select, Stars, cx } from './ui';
 
@@ -85,6 +86,7 @@ export interface ProCardData {
   mainService: string | null; indicativePriceMinor: number | null; pricingType: string | null; currency: string | null;
   ratingAvg: number; ratingCount: number; completedJobs: number; remoteAvailable: boolean; acceptingRequests: boolean;
   availability: 'available' | 'this_week' | 'limited' | 'unknown'; badges: Badges;
+  planBadge?: string | null; promoted?: boolean;
 }
 
 export function PriceHint({ minor, type, currency }: { minor: number | null; type: string | null; currency: string | null }) {
@@ -106,7 +108,8 @@ export function ProCard({ p }: { p: ProCardData }) {
         <div className="min-w-0 flex-1 space-y-1.5">
           <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
             <div className="min-w-0">
-              <h3 className="truncate font-semibold text-ink group-hover:text-brand-700 dark:text-white">{p.displayName}</h3>
+              <h3 className="flex items-center gap-2 truncate font-semibold text-ink group-hover:text-brand-700 dark:text-white">{p.displayName}<PlanBadge badge={p.planBadge} /></h3>
+              {p.promoted && <PromotedLabel />}
               <p className="truncate text-sm text-ink-soft dark:text-white/70">{p.mainService}{p.headline ? ` · ${p.headline}` : ''}</p>
             </div>
             <PriceHint minor={p.indicativePriceMinor} type={p.pricingType} currency={p.currency} />

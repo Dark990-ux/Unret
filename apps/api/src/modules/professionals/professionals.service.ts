@@ -5,6 +5,7 @@ import { AuditService } from '../../common/audit.service';
 import { haversineKm } from '../../common/geo';
 import { pageResult } from '../../common/pagination';
 import { PrismaService } from '../../common/prisma.service';
+import { PlansService, VISIBILITY_BOOST } from '../subscriptions/plans.service';
 import { AvailabilityService } from '../availability/availability.service';
 import { CategoriesService } from '../categories/categories.service';
 import { StorageService } from '../files/storage.service';
@@ -30,6 +31,7 @@ export class ProfessionalsService {
     private availability: AvailabilityService,
     private storage: StorageService,
     private audit: AuditService,
+    private plans: PlansService,
   ) {}
 
   // ───────── Onboarding & editing ─────────
@@ -289,6 +291,7 @@ export class ProfessionalsService {
         serviceName: this.categories.pickName(r.job.request.category, locale).name,
       })),
       saved,
+      planBadge: (await this.plans.visibilityMap([id])).get(id)?.badge ?? null,
       visibility: isOwnerOrAdmin ? p.visibility : undefined,
     };
   }
@@ -363,11 +366,14 @@ export class ProfessionalsService {
     scored.sort((a, b) => pre(b) - pre(a));
     const date = q.availableOn ? new Date(q.availableOn + 'T12:00:00Z') : null;
     const evaluated = scored.slice(0, 120);
-    const withAvail: (Scored & { availability: number; score: number })[] = [];
+    // Paid plans are shown higher (disclosed to customers as "Promoted").
+    const vis = await this.plans.visibilityMap(evaluated.map((s) => s.p.id));
+    const withAvail: (Scored & { availability: number; score: number; plan: { visibility: number; badge: string | null } | null })[] = [];
     for (const s of evaluated) {
       const availability = await this.availability.availabilityScore(s.p.id, date, false, s.p.emergencyAvailable);
       if (date && availability < 1) continue;
-      withAvail.push({ ...s, availability: s.p.acceptingRequests ? availability : availability * 0.5, score: pre(s) + MATCH_WEIGHTS.availability * availability });
+      const plan = vis.get(s.p.id) ?? null;
+      withAvail.push({ ...s, plan, availability: s.p.acceptingRequests ? availability : availability * 0.5, score: pre(s) + MATCH_WEIGHTS.availability * availability + VISIBILITY_BOOST[plan?.visibility ?? 0] });
     }
     const sorters: Record<string, (a: (typeof withAvail)[number], b: (typeof withAvail)[number]) => number> = {
       relevance: (a, b) => b.score - a.score,
@@ -396,6 +402,8 @@ export class ProfessionalsService {
       acceptingRequests: s.p.acceptingRequests,
       availability: s.availability >= 1 ? 'available' : s.availability >= 0.6 ? 'this_week' : s.availability > 0.3 ? 'limited' : 'unknown',
       badges: this.badges(s.p.verifications, locale),
+      planBadge: s.plan?.badge ?? null,
+      promoted: (s.plan?.visibility ?? 0) > 0,
       score: Math.round(s.score * 1000) / 1000,
     }));
     return pageResult(items, withAvail.length, q);

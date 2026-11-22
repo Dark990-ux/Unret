@@ -8,6 +8,7 @@ import { CategoriesService } from '../categories/categories.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { QueueService } from '../notifications/queue.service';
 import { smoothedRating } from '../professionals/professionals.service';
+import { PlansService, VISIBILITY_BOOST } from '../subscriptions/plans.service';
 
 interface Evaluation {
   professionalId: string;
@@ -25,7 +26,9 @@ interface Evaluation {
  *  → 5. mandatory verification requirements → 6. account status → 7. rank → 8. distribute to a limited
  *  group → 9. expand later if too few offers.
  * Every evaluated professional gets a RequestMatch row with the decision and the reason.
- * Subscription status is deliberately NOT an input.
+ * Paid plans add a small, disclosed visibility boost to the score and raise the daily number of new requests
+ * a professional receives (Free 7, Standard 50, Deluxe 100, VIP unlimited). Requests sent directly to a
+ * professional are always delivered and never count towards the limit.
  */
 @Injectable()
 export class MatchingService implements OnModuleInit {
@@ -37,6 +40,7 @@ export class MatchingService implements OnModuleInit {
     private availability: AvailabilityService,
     private notifications: NotificationsService,
     private queue: QueueService,
+    private plans: PlansService,
   ) {}
 
   onModuleInit() {
@@ -123,6 +127,14 @@ export class MatchingService implements OnModuleInit {
         },
       });
     }
+    // Paid plans: disclosed visibility boost (shown as "Promoted" to customers).
+    const vis = await this.plans.visibilityMap(out.filter((e) => e.included).map((e) => e.professionalId));
+    for (const e of out) {
+      const v = vis.get(e.professionalId);
+      if (!e.included || !v?.visibility) continue;
+      e.score = Math.round((e.score + VISIBILITY_BOOST[v.visibility]) * 10000) / 10000;
+      e.breakdown = { ...e.breakdown, planBoost: VISIBILITY_BOOST[v.visibility], plan: v.badge };
+    }
     return out.sort((a, b) => b.score - a.score);
   }
 
@@ -147,12 +159,17 @@ export class MatchingService implements OnModuleInit {
   /** Notify the next N eligible, not-yet-notified professionals. Returns number notified. */
   async distributeWave(requestId: string, size = MATCH_EXPANSION_WAVE): Promise<number> {
     const req = await this.prisma.serviceRequest.findUniqueOrThrow({ where: { id: requestId }, include: { category: { include: { translations: true } } } });
-    const next = await this.prisma.requestMatch.findMany({
+    const candidates = await this.prisma.requestMatch.findMany({
       where: { requestId, included: true, notifiedAt: null },
       orderBy: { score: 'desc' },
-      take: size,
       include: { professional: { select: { userId: true, user: { select: { preferredLanguage: true } } } } },
     });
+    // Respect each professional's daily allowance; those at their limit are skipped (and can get it in a later wave).
+    const next: typeof candidates = [];
+    for (const c of candidates) {
+      if (next.length >= size) break;
+      if (await this.underDailyLimit(c.professionalId, c.id)) next.push(c);
+    }
     if (!next.length) return 0;
     const wave = req.matchWave + 1;
     const now = new Date();
@@ -171,6 +188,30 @@ export class MatchingService implements OnModuleInit {
       });
     }
     return next.length;
+  }
+
+  /** True when the professional can receive one more new request today; otherwise records the miss and tells them (once a day). */
+  private async underDailyLimit(professionalId: string, matchId: string) {
+    const { features: f, plan } = await this.plans.planFor(professionalId);
+    if (f.requestsPerDay === null) return true;
+    const usage = await this.plans.usageToday(professionalId);
+    if (usage.used < f.requestsPerDay) return true;
+    await this.prisma.requestMatch.update({ where: { id: matchId }, data: { limitSkippedAt: new Date() } });
+    const pro = await this.prisma.professionalProfile.findUniqueOrThrow({ where: { id: professionalId }, select: { userId: true, countryCode: true, planLimitNoticeAt: true } });
+    if (!pro.planLimitNoticeAt || pro.planLimitNoticeAt < usage.since) {
+      await this.prisma.professionalProfile.update({ where: { id: professionalId }, data: { planLimitNoticeAt: new Date() } });
+      const better = await this.prisma.subscriptionPlan.findFirst({ where: { countryCode: pro.countryCode, isActive: true, sortOrder: { gt: plan?.sortOrder ?? 0 } }, orderBy: { sortOrder: 'asc' } });
+      const bf = better ? (better.features as { requestsPerDay?: number | null }) : null;
+      await this.notifications.notify({
+        userId: pro.userId, type: 'PLAN_LIMIT_REACHED',
+        title: `You reached today's limit of ${f.requestsPerDay} new requests`,
+        body: better
+          ? `More customers are looking for your services today. Upgrade to ${better.name} to receive ${bf?.requestsPerDay == null ? 'unlimited requests' : `up to ${bf.requestsPerDay} requests per day`}.`
+          : 'More customers are looking for your services today. New requests continue tomorrow.',
+        data: { url: '/pro/plans' },
+      });
+    }
+    return false;
   }
 
   /** A request sent from a professional's calendar goes to that professional only. */

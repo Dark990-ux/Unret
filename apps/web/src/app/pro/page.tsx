@@ -7,6 +7,7 @@ import { ProShell } from '@/components/shell';
 import { dateTime, money, responseTime, timeAgo } from '@/lib/format';
 import { useApi } from '@/lib/hooks';
 import { useT } from '@/lib/i18n';
+import { UsageCard } from '@/components/plans';
 
 export default function Page() {
   return <ProShell><Overview /></ProShell>;
@@ -18,6 +19,7 @@ function Overview() {
   const inbox = useApi<{ items: any[]; total: number }>('/requests/inbox', { filter: 'new', pageSize: 5 });
   const jobs = useApi<{ items: any[]; total: number }>('/jobs', { as: 'professional', filter: 'active', pageSize: 5 });
   const offers = useApi<any[]>('/offers/mine', { status: 'PENDING' });
+  const plan = useApi<any>('/subscriptions/summary');
   const earnings = useApi<{ totals: any[] }>('/payments', { as: 'professional', pageSize: 1 });
   if (pro.loading || !pro.data) return <PageLoader />;
   const p = pro.data;
@@ -54,6 +56,7 @@ function Overview() {
         <div className="mb-6"><Alert tone="blue">{t('Tip: verified professionals win more jobs. Submit your identity and qualification documents in Verification.')}</Alert></div>
       )}
 
+      <UsageCard s={plan.data} compact />
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label={t('New requests')} value={inbox.data?.total ?? '—'} icon={<Inbox className="h-4 w-4" />} />
         <Stat label={t('Pending offers')} value={offers.data?.length ?? '—'} icon={<ClipboardList className="h-4 w-4" />} />

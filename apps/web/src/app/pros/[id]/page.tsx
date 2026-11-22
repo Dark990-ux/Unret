@@ -7,6 +7,7 @@ import { AvailabilityCalendar } from '@/components/calendar';
 import { PriceHint, Rating, VerificationBadges, WEEKDAYS, Badges } from '@/components/domain';
 import { ReportButton } from '@/components/report';
 import { AvailabilityAlertButton } from '@/components/notify';
+import { PlanBadge } from '@/components/plans';
 import { Alert, Avatar, Badge, Button, Card, Container, Empty, PageLoader, Stars } from '@/components/ui-exports';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -17,7 +18,7 @@ import { useT } from '@/lib/i18n';
 interface Profile {
   id: string; displayName: string; accountType: string; headline: string | null; biography: string | null; experienceYears: number | null;
   languages: string[]; city: string | null; serviceRadiusKm: number; remoteAvailable: boolean; emergencyAvailable: boolean; acceptingRequests: boolean;
-  avatarUrl: string | null; company: { displayName: string } | null;
+  avatarUrl: string | null; company: { displayName: string } | null; planBadge?: string | null;
   services: { categoryId: string; categorySlug: string; categoryName: string; description: string | null; pricingType: string; indicativePriceMinor: number | null; currency: string; isPrimary: boolean }[];
   portfolio: { id: string; title: string; description: string | null; url: string }[];
   workingHours: { weekday: number; startTime: string; endTime: string }[];
@@ -73,7 +74,7 @@ export default function ProfilePage() {
             <div className="flex flex-col gap-5 sm:flex-row">
               <Avatar name={p.displayName} url={p.avatarUrl} size={96} />
               <div className="min-w-0 flex-1 space-y-2">
-                <h1 className="text-2xl font-semibold tracking-tight text-ink dark:text-white">{p.displayName}</h1>
+                <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight text-ink dark:text-white">{p.displayName}<PlanBadge badge={p.planBadge} /></h1>
                 {p.headline && <p className="text-ink-soft dark:text-white/70">{p.headline}</p>}
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ink-muted">
                   <Rating avg={p.stats.ratingAvg} count={p.stats.ratingCount} />

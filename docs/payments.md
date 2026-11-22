@@ -58,6 +58,7 @@ UNRET asks Stripe for the result when the customer comes back from the payment p
   - `checkout.session.async_payment_failed`
   - `checkout.session.expired`
   - `account.updated` (enable "Listen to events on Connected accounts")
+  - for plans: `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted` and `invoice.payment_failed`
 
   Copy its signing secret into `STRIPE_WEBHOOK_SECRET`.
 
@@ -77,3 +78,25 @@ UNRET asks Stripe for the result when the customer comes back from the payment p
 
 - **Platform fee:** UNRET keeps it from each payment. It is set per country and is 10% in Romania.
 - **Stripe's card fee:** UNRET estimates it at about 1.5% + 1.25 RON for European cards when it calculates the professional's share. The exact fee for each payment is shown in the Stripe dashboard.
+
+## Plans for professionals (subscriptions)
+
+Professionals pay a monthly plan. Customers never pay a subscription.
+
+| Plan | Price | New requests per day | Visibility |
+|---|---|---|---|
+| Free | €0 | 7 | normal |
+| Standard | €5.99 / month | 50 | shown higher, ⭐ Standard badge |
+| Deluxe | €9.99 / month | 100 | shown even higher, 💎 Deluxe badge |
+| VIP | €19.99 / month | unlimited | top placement, 👑 VIP badge |
+
+- **What the limit counts:** new requests from matching. Requests a customer sends directly to a professional (from their profile or calendar) are always delivered and never count.
+- **Reaching the limit:** extra matching requests go to other professionals. The professional gets one notice that day with an upgrade suggestion, and sees "N more requests matched you today".
+- **Ranking:** paid plans get a small ranking boost in search and matching. Relevance, distance, availability and reviews still come first. Boosted professionals are labelled **Promoted**, because EU rules require paid placement to be disclosed.
+- **Billing:** Stripe Billing.
+  - The first payment happens on Stripe's page, then Stripe charges every month.
+  - Changing plan happens right away, and the difference is settled on the next invoice.
+  - Cancelling keeps the plan until the end of the paid month.
+  - Failed renewals are retried by Stripe, and the professional is notified.
+- **Without Stripe (`PAYMENT_PROVIDER=mock`):** plans start immediately, for testing.
+- **Changing prices or limits:** admins edit plans in **Admin → Subscription plans** (`requestsPerDay`, `visibility`, `badge`). A price change creates a new Stripe price for new subscribers.

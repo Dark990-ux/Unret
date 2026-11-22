@@ -75,7 +75,7 @@ function SearchPage() {
       )}
       <p className="mt-6 text-sm text-ink-muted">
         {data ? t('{n} professionals found', { n: data.total }) : ' '}
-        <span className="ml-2 text-xs">{t('Ranked by relevance, distance, availability, reliability and rating — never by paid placement.')}</span>
+        <span className="ml-2 text-xs">{t('Ranked by relevance, distance, availability, reliability and rating. Professionals with a paid plan are shown higher and marked Promoted.')}</span>
       </p>
       <div className="mt-4">
         {loading ? <PageLoader /> : !data?.items.length ? (

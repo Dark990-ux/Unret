@@ -10,7 +10,7 @@ import { ProfessionalsService } from './professionals.service';
 export class ProfessionalsController {
   constructor(private pros: ProfessionalsService) {}
 
-  /** Public search. Ranking: relevance, location, availability, reliability, rating — never subscription tier. */
+  /** Public search. Ranking: relevance, location, availability, reliability, rating, plus a disclosed boost for paid plans ("Promoted"). */
   @Public()
   @Get()
   search(@Query() q: SearchQuery) {
