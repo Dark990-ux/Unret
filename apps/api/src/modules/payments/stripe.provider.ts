@@ -162,8 +162,9 @@ export class StripePaymentProvider implements PaymentProvider {
   async ensurePlanPrice(plan: { code: string; name: string; priceMinor: number; currency: string }) {
     const product = await this.stripe.products.create({ name: `UNRET ${plan.name}`, metadata: { plan: plan.code } }, { idempotencyKey: `product_${plan.code}_${plan.priceMinor}_${plan.currency}` });
     const price = await this.stripe.prices.create(
-      { product: product.id, unit_amount: plan.priceMinor, currency: plan.currency.toLowerCase(), recurring: { interval: 'month' }, metadata: { plan: plan.code } },
-      { idempotencyKey: `price_${plan.code}_${plan.priceMinor}_${plan.currency}` },
+      // Prices include VAT: the professional pays exactly the advertised amount; with Stripe Tax on, the VAT inside it is shown on the invoice.
+      { product: product.id, unit_amount: plan.priceMinor, currency: plan.currency.toLowerCase(), recurring: { interval: 'month' }, tax_behavior: 'inclusive', metadata: { plan: plan.code } },
+      { idempotencyKey: `price_${plan.code}_${plan.priceMinor}_${plan.currency}_incl` },
     );
     return price.id;
   }
@@ -176,6 +177,8 @@ export class StripePaymentProvider implements PaymentProvider {
       client_reference_id: i.professionalId,
       metadata: { subscriptionId: i.localId },
       subscription_data: { metadata: { subscriptionId: i.localId, professionalId: i.professionalId } },
+      // Optional: let Stripe Tax calculate the VAT included in the price (needs Stripe Tax set up: STRIPE_AUTOMATIC_TAX=true).
+      ...(process.env.STRIPE_AUTOMATIC_TAX === 'true' ? { automatic_tax: { enabled: true }, billing_address_collection: 'required' as const, tax_id_collection: { enabled: true } } : {}),
       success_url: withQuery(i.returnUrl, 'subscription=success'),
       cancel_url: withQuery(i.returnUrl, 'subscription=cancelled'),
     });

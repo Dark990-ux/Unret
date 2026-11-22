@@ -40,6 +40,7 @@ services:
       PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-mock}
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_AUTOMATIC_TAX: ${STRIPE_AUTOMATIC_TAX:-false}
       # Email: by default every email goes to the local Mailpit inbox (http://localhost:8025).
       # For real delivery set SMTP_* in a .env file next to this file (see docs/email.md).
       SMTP_HOST: ${SMTP_HOST:-mailpit}

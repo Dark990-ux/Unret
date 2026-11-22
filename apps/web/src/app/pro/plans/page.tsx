@@ -72,6 +72,7 @@ function Plans() {
               <div className="mt-2">
                 <span className="text-3xl font-bold tabular-nums text-ink dark:text-white">{p.priceMinor ? money(p.priceMinor, p.currency, intl) : money(0, p.currency, intl)}</span>
                 <span className="text-sm text-ink-muted"> {t('/month')}</span>
+                {p.priceMinor > 0 && <div className="text-xs text-ink-muted">{t('incl. VAT')}</div>}
               </div>
               <div className="mt-3 rounded-xl bg-surface-sunk px-3 py-2 text-sm font-semibold text-ink dark:bg-white/5 dark:text-white">
                 {f.requestsPerDay === null ? `♾️ ${t('Unlimited new requests')}` : `📥 ${t('{n} new requests / day', { n: f.requestsPerDay })}`}
@@ -97,6 +98,7 @@ function Plans() {
         })}
       </div>
       <div className="mt-6 space-y-1 text-xs text-ink-muted">
+        <p className="font-medium text-ink-soft dark:text-white/70">{t('All prices are in euros and include VAT.')}</p>
         <p>{t('Billed monthly. Cancel at any time; your plan stays active until the end of the month you paid for. Changing plans takes effect right away and the price difference is settled on your next invoice.')}</p>
         <p>{t('Paid plans are shown higher in search and matching and are marked “Promoted” for customers. Ranking still depends first on the service, distance, availability and reviews.')}</p>
         {s.billing === 'simulated' && <p>{t('Test mode: no payment provider is connected, so plans start without payment.')}</p>}

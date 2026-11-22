@@ -61,7 +61,7 @@ export default function PlansScreen() {
           <Card key={p.id} style={{ gap: 10, borderWidth: current ? 2 : 1, borderColor: current ? th.brand : th.line, backgroundColor: p.code === 'vip' ? '#fff8e1' : th.card }}>
             <Row style={{ justifyContent: 'space-between' }}>
               <Row gap={8}><Text variant="h2" color={p.code === 'vip' ? '#1b1a3a' : undefined}>{t(p.name)}</Text>{current ? <Badge tone="green">{t('Current')}</Badge> : <PlanBadge badge={f.badge} />}</Row>
-              <Text variant="h2" color={p.code === 'vip' ? '#1b1a3a' : undefined}>{money(p.priceMinor, p.currency, intl)}<Text variant="small"> {t('/month')}</Text></Text>
+              <View style={{ alignItems: 'flex-end' }}><Text variant="h2" color={p.code === 'vip' ? '#1b1a3a' : undefined}>{money(p.priceMinor, p.currency, intl)}<Text variant="small"> {t('/month')}</Text></Text>{p.priceMinor > 0 && <Text style={{ fontSize: 11, color: p.code === 'vip' ? '#3d3f66' : th.muted }}>{t('incl. VAT')}</Text>}</View>
             </Row>
             {p.code === 'deluxe' && !current && <Text style={{ fontSize: 12, fontWeight: '700', color: '#b45309' }}>★ {t('Most popular')}</Text>}
             <View style={{ backgroundColor: p.code === 'vip' ? '#ffffff' : th.sunk, borderRadius: 10, padding: 8 }}>
@@ -80,6 +80,7 @@ export default function PlansScreen() {
           </Card>
         );
       })}
+      <Text variant="small" style={{ fontWeight: '600' }}>{t('All prices are in euros and include VAT.')}</Text>
       <Text variant="small">{t('Billed monthly. Cancel at any time; your plan stays active until the end of the month you paid for. Changing plans takes effect right away and the price difference is settled on your next invoice.')}</Text>
       <Text variant="small">{t('Paid plans are shown higher in search and matching and are marked “Promoted” for customers. Ranking still depends first on the service, distance, availability and reviews.')}</Text>
       {s.billing === 'simulated' && <Text variant="small">{t('Test mode: no payment provider is connected, so plans start without payment.')}</Text>}

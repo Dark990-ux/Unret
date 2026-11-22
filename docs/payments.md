@@ -81,7 +81,7 @@ UNRET asks Stripe for the result when the customer comes back from the payment p
 
 ## Plans for professionals (subscriptions)
 
-Professionals pay a monthly plan. Customers never pay a subscription.
+Professionals pay a monthly plan. Customers never pay a subscription. **All plan prices are in euros and include VAT.**
 
 | Plan | Price | New requests per day | Visibility |
 |---|---|---|---|
@@ -98,5 +98,6 @@ Professionals pay a monthly plan. Customers never pay a subscription.
   - Changing plan happens right away, and the difference is settled on the next invoice.
   - Cancelling keeps the plan until the end of the paid month.
   - Failed renewals are retried by Stripe, and the professional is notified.
+- **VAT:** plan prices are created at Stripe as VAT-inclusive (`tax_behavior: inclusive`), so a professional pays exactly the advertised price. To show the VAT on Stripe invoices, set up **Stripe Tax** (Dashboard → Tax: add your Romanian VAT registration), then set `STRIPE_AUTOMATIC_TAX=true`. Stripe then asks for the billing address and lets businesses enter their VAT ID.
 - **Without Stripe (`PAYMENT_PROVIDER=mock`):** plans start immediately, for testing.
 - **Changing prices or limits:** admins edit plans in **Admin → Subscription plans** (`requestsPerDay`, `visibility`, `badge`). A price change creates a new Stripe price for new subscribers.
