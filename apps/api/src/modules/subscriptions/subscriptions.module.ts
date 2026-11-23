@@ -161,7 +161,7 @@ export class SubscriptionsService {
     if (!sub) return; // not activated yet: the checkout event handles it
     const ended = s.status === 'CANCELLED';
     await this.prisma.professionalSubscription.update({ where: { id: sub.id }, data: { status: ended ? (sub.currentPeriodEnd < new Date() ? 'EXPIRED' : 'CANCELLED') : s.status === 'PENDING' ? sub.status : s.status, currentPeriodEnd: s.currentPeriodEnd, cancelAtPeriodEnd: s.cancelAtPeriodEnd } });
-    if (ended && sub.status !== 'CANCELLED') await this.notifyChange(sub.professionalId, `Your ${sub.plan.name} plan has ended`, 'You are back on the Free plan (up to 7 new requests per day). You can choose a plan again at any time.');
+    if (ended && sub.status !== 'CANCELLED') await this.notifyChange(sub.professionalId, `Your ${sub.plan.name} plan has ended`, 'You are back on the Free plan (up to 8 new requests per day). You can choose a plan again at any time.');
   }
 
   async onProviderPaymentFailed(subscriptionRef: string) {
@@ -203,7 +203,7 @@ export class SubscriptionsService {
         await this.prisma.professionalSubscription.update({ where: { id: sub.id }, data: { currentPeriodEnd: new Date(sub.currentPeriodEnd.getTime() + PERIOD_DAYS * 864e5) } });
       } else if (sub.provider === 'simulated' || sub.cancelAtPeriodEnd) {
         await this.prisma.professionalSubscription.update({ where: { id: sub.id }, data: { status: 'EXPIRED' } });
-        await this.notifyChange(sub.professionalId, `Your ${sub.plan.name} plan has ended`, 'You are back on the Free plan (up to 7 new requests per day). You can choose a plan again at any time.');
+        await this.notifyChange(sub.professionalId, `Your ${sub.plan.name} plan has ended`, 'You are back on the Free plan (up to 8 new requests per day). You can choose a plan again at any time.');
       } else if (sub.providerRef && this.provider.getSubscription) {
         await this.onProviderUpdate(await this.provider.getSubscription(sub.providerRef)).catch((e) => this.log.warn((e as Error).message));
       }

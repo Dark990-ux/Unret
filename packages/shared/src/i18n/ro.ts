@@ -1084,4 +1084,6 @@ export const ro: Record<string, string> = {
   "Ranked by relevance, distance, availability, reliability and rating. Professionals with a paid plan are shown higher and marked Promoted.": "Ordonați după relevanță, distanță, disponibilitate, fiabilitate și rating. Profesioniștii cu abonament plătit apar mai sus și sunt marcați Promovat.",
   "incl. VAT": "TVA inclus",
   "All prices are in euros and include VAT.": "Toate prețurile sunt în euro și includ TVA.",
+  "Up to 8 new requests per day": "Până la 8 cereri noi pe zi",
+  "Chat with the customers who contact you": "Chat cu clienții care te contactează",
 };

@@ -85,7 +85,7 @@ Professionals pay a monthly plan. Customers never pay a subscription. **All plan
 
 | Plan | Price | New requests per day | Visibility |
 |---|---|---|---|
-| Free | €0 | 7 | normal |
+| Free | €0 | 8 | normal (chat with customers; limited number of new customers) |
 | Standard | €5.99 / month | 50 | shown higher, ⭐ Standard badge |
 | Deluxe | €9.99 / month | 100 | shown even higher, 💎 Deluxe badge |
 | VIP | €19.99 / month | unlimited | top placement, 👑 VIP badge |

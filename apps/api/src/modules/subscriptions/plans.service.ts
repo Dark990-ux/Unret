@@ -17,7 +17,7 @@ export const VISIBILITY_BOOST = [0, 0.04, 0.08, 0.12];
 
 export const features = (p: Pick<SubscriptionPlan, 'features'>): PlanFeatures => {
   const f = (p.features ?? {}) as Partial<PlanFeatures>;
-  return { requestsPerDay: f.requestsPerDay === undefined ? 7 : f.requestsPerDay, visibility: f.visibility ?? 0, badge: f.badge ?? null, highlights: f.highlights ?? [] };
+  return { requestsPerDay: f.requestsPerDay === undefined ? 8 : f.requestsPerDay, visibility: f.visibility ?? 0, badge: f.badge ?? null, highlights: f.highlights ?? [] };
 };
 
 /** Which plan a professional is on, and how much of today's allowance they used. */
@@ -42,7 +42,7 @@ export class PlansService {
     if (sub) return { plan: sub.plan, features: features(sub.plan), subscription: sub };
     const pro = await this.prisma.professionalProfile.findUniqueOrThrow({ where: { id: professionalId }, select: { countryCode: true } });
     const free = await this.freePlan(pro.countryCode);
-    return { plan: free, features: free ? features(free) : { requestsPerDay: 7, visibility: 0, badge: null }, subscription: null };
+    return { plan: free, features: free ? features(free) : { requestsPerDay: 8, visibility: 0, badge: null }, subscription: null };
   }
 
   /** Visibility level for many professionals at once (search, matching). */
