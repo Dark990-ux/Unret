@@ -9,6 +9,7 @@ import { methodIcon, methodLabel } from '@/components/payment';
 import { date, money, period, timeAgo } from '@/lib/format';
 import { useApi } from '@/lib/hooks';
 import { useT } from '@/lib/i18n';
+import { describeAvailability } from '@/lib/availability';
 import { useRealtime } from '@/lib/realtime';
 
 export default function Page() {
@@ -48,7 +49,7 @@ function RequestInbox() {
                 <p className="mt-2 line-clamp-2 text-sm text-ink-soft dark:text-white/70">{r.description}</p>
                 <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-ink-muted">
                   {r.serviceMode === 'REMOTE' ? <span className="inline-flex items-center gap-1"><Wifi className="h-3.5 w-3.5" />{t('Remote')}</span> : <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{r.city}{r.distanceKm != null && ` · ${r.distanceKm} km`}</span>}
-                  {r.preferredDate && <span>{t('Preferred date')}: {period(r.preferredDate, r.preferredDateTo, intl)}</span>}
+                  {(describeAvailability(r, t, intl) || r.preferredDate) && <span>{t('Available')}: {describeAvailability(r, t, intl) ?? period(r.preferredDate, r.preferredDateTo, intl)}</span>}
                   {r.attachmentCount > 0 && <span className="inline-flex items-center gap-1"><Paperclip className="h-3.5 w-3.5" />{r.attachmentCount}</span>}
                   {r.paymentMethod && <span>{methodIcon(r.paymentMethod)} {t(methodLabel(r.paymentMethod))}</span>}
                   <span>{t('{n} offers so far', { n: r.offerCount })}</span>

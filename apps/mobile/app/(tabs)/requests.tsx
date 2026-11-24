@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { period, timeAgo } from '@/lib/format';
 import { useApi } from '@/lib/hooks';
 import { useT } from '@/lib/i18n';
+import { describeAvailability } from '@/lib/availability';
 import { useRealtime } from '@/lib/realtime';
 import { InboxCard } from '@/components/cards';
 
@@ -26,7 +27,7 @@ function MyRequests() {
           <Card key={r.id} onPress={() => router.push(`/requests/${r.id}`)}>
             <Row style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}><Text variant="label" numberOfLines={1} style={{ flex: 1 }}>{r.title}</Text><StatusBadge status={r.job?.status ?? r.status} /></Row>
             <Text variant="small">{r.categoryName}{r.city ? ` · ${r.city}` : ''} · {timeAgo(r.publishedAt ?? r.createdAt, intl)}</Text>
-            <Row gap={6}>{r.directTo && <Badge tone="sun">✦ {r.directTo}</Badge>}{r.preferredDate && <Text variant="small">📅 {period(r.preferredDate, r.preferredDateTo, intl)}</Text>}{r.offerCount > 0 && <Badge tone="violet">{t('{n} offers', { n: r.offerCount })}</Badge>}</Row>
+            <Row gap={6}>{r.directTo && <Badge tone="sun">✦ {r.directTo}</Badge>}{(describeAvailability(r, t, intl) || r.preferredDate) && <Text variant="small">📅 {describeAvailability(r, t, intl) ?? period(r.preferredDate, r.preferredDateTo, intl)}</Text>}{r.offerCount > 0 && <Badge tone="violet">{t('{n} offers', { n: r.offerCount })}</Badge>}</Row>
           </Card>
         ))}
     </Screen>

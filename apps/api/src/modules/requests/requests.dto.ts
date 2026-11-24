@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { ArrayMaxSize, IsArray, IsBoolean, IsDateString, IsEnum, IsIn, IsInt, IsLatitude, IsLongitude, IsOptional, IsString, Length, MaxLength, Min } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsDateString, IsEnum, IsIn, IsInt, IsLatitude, IsLongitude, IsOptional, IsString, Length, Matches, Max, MaxLength, Min } from 'class-validator';
 import { PaymentMethod, ServiceMode, Urgency } from '@prisma/client';
 import { PageQuery } from '../../common/pagination';
 
@@ -17,6 +17,12 @@ export class CreateRequestDto {
   @ApiProperty({ required: false, description: 'End of the preferred period (inclusive), for date ranges' }) @IsOptional() @IsDateString() preferredDateTo?: string;
   @ApiProperty({ required: false, description: 'Send the request directly to this professional only' }) @IsOptional() @IsString() professionalId?: string;
   @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(60) preferredTimeWindow?: string;
+  @ApiProperty({ required: false, enum: ['any', 'weekdays', 'dates'], description: 'When the customer is available: every day, specific weekdays or specific dates' })
+  @IsOptional() @IsIn(['any', 'weekdays', 'dates']) availabilityMode?: 'any' | 'weekdays' | 'dates';
+  @ApiProperty({ required: false, type: [Number], description: '0 = Sunday … 6 = Saturday' })
+  @IsOptional() @IsArray() @ArrayMaxSize(7) @IsInt({ each: true }) @Min(0, { each: true }) @Max(6, { each: true }) availableWeekdays?: number[];
+  @ApiProperty({ required: false, type: [String], description: 'Specific days, YYYY-MM-DD' })
+  @IsOptional() @IsArray() @ArrayMaxSize(60) @Matches(/^\d{4}-\d{2}-\d{2}$/, { each: true }) availableDates?: string[];
   @ApiProperty({ required: false }) @IsOptional() @IsInt() @Min(0) budgetMinMinor?: number;
   @ApiProperty({ required: false }) @IsOptional() @IsInt() @Min(0) budgetMaxMinor?: number;
   @ApiProperty({ enum: Urgency }) @IsOptional() @IsEnum(Urgency) urgency?: Urgency;
@@ -37,6 +43,12 @@ export class UpdateRequestDto {
   @IsOptional() @IsDateString() preferredDate?: string;
   @IsOptional() @IsDateString() preferredDateTo?: string;
   @IsOptional() @IsString() @MaxLength(60) preferredTimeWindow?: string;
+  @ApiProperty({ required: false, enum: ['any', 'weekdays', 'dates'], description: 'When the customer is available: every day, specific weekdays or specific dates' })
+  @IsOptional() @IsIn(['any', 'weekdays', 'dates']) availabilityMode?: 'any' | 'weekdays' | 'dates';
+  @ApiProperty({ required: false, type: [Number], description: '0 = Sunday … 6 = Saturday' })
+  @IsOptional() @IsArray() @ArrayMaxSize(7) @IsInt({ each: true }) @Min(0, { each: true }) @Max(6, { each: true }) availableWeekdays?: number[];
+  @ApiProperty({ required: false, type: [String], description: 'Specific days, YYYY-MM-DD' })
+  @IsOptional() @IsArray() @ArrayMaxSize(60) @Matches(/^\d{4}-\d{2}-\d{2}$/, { each: true }) availableDates?: string[];
   @IsOptional() @IsInt() @Min(0) budgetMinMinor?: number;
   @IsOptional() @IsInt() @Min(0) budgetMaxMinor?: number;
   @IsOptional() @IsEnum(Urgency) urgency?: Urgency;

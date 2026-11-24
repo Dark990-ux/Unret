@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { money, period, timeAgo } from '@/lib/format';
 import { useT } from '@/lib/i18n';
+import { describeAvailability } from '@/lib/availability';
 import { Badge, Card, Row, StatusBadge, Text } from './ui';
 import { methodIcon, methodLabel } from './payment';
 
@@ -17,7 +18,7 @@ export function InboxCard({ r }: { r: any }) {
         <Text variant="small">{r.serviceMode === 'REMOTE' ? `🌐 ${t('Remote')}` : `📍 ${r.city ?? ''}${r.distanceKm != null ? ` · ${r.distanceKm} km` : ''}`}</Text>
         <Text variant="small">{timeAgo(r.notifiedAt, intl)}</Text>
         {r.direct && <Badge tone="sun">✦ {t('Direct request')}</Badge>}
-        {r.preferredDate && <Text variant="small">📅 {period(r.preferredDate, r.preferredDateTo, intl)}</Text>}
+        {(describeAvailability(r, t, intl) || r.preferredDate) && <Text variant="small">📅 {describeAvailability(r, t, intl) ?? period(r.preferredDate, r.preferredDateTo, intl)}</Text>}
         {r.paymentMethod && <Text variant="small">{methodIcon(r.paymentMethod)} {t(methodLabel(r.paymentMethod))}</Text>}
         {r.urgency === 'EMERGENCY' && <Badge tone="red">{t('Emergency')}</Badge>}
         {r.budgetMaxMinor ? <Text variant="small">≤ {money(r.budgetMaxMinor, r.currency, intl)}</Text> : null}

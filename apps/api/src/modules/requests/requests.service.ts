@@ -14,6 +14,31 @@ import { CreateRequestDto, InboxQuery, ListRequestsQuery, UpdateRequestDto } fro
 
 const REQUEST_TTL_DAYS = 14;
 
+/**
+ * "When are you available?" → stored fields. Specific dates also fill preferredDate/preferredDateTo
+ * (first and last day) so matching, calendars and expiry keep working; weekdays/every day leave them empty.
+ */
+function availabilityFields(dto: { availabilityMode?: string; availableWeekdays?: number[]; availableDates?: string[]; preferredDate?: string; preferredDateTo?: string }) {
+  const today = new Date().toISOString().slice(0, 10);
+  switch (dto.availabilityMode) {
+    case 'any':
+      return { availabilityMode: 'any', availableWeekdays: [], availableDates: [], preferredDate: undefined, preferredDateTo: undefined };
+    case 'weekdays': {
+      const days = [...new Set(dto.availableWeekdays ?? [])].sort();
+      if (!days.length) throw new BadRequestException('Choose at least one day of the week');
+      return { availabilityMode: days.length === 7 ? 'any' : 'weekdays', availableWeekdays: days.length === 7 ? [] : days, availableDates: [], preferredDate: undefined, preferredDateTo: undefined };
+    }
+    case 'dates': {
+      const dates = [...new Set(dto.availableDates ?? [])].sort();
+      if (!dates.length) throw new BadRequestException('Choose at least one date');
+      if (dates[0] < today) throw new BadRequestException('Dates in the past cannot be chosen');
+      return { availabilityMode: 'dates', availableWeekdays: [], availableDates: dates, preferredDate: `${dates[0]}T00:00:00.000Z`, preferredDateTo: `${dates[dates.length - 1]}T00:00:00.000Z` };
+    }
+    default:
+      return { availabilityMode: undefined, availableWeekdays: undefined, availableDates: undefined, preferredDate: dto.preferredDate, preferredDateTo: dto.preferredDateTo };
+  }
+}
+
 @Injectable()
 export class RequestsService {
   constructor(
@@ -30,7 +55,8 @@ export class RequestsService {
     const u = await this.prisma.user.findUniqueOrThrow({ where: { id: user.id }, include: { country: true } });
     await this.categories.getForCountry(dto.categoryId, u.countryCode);
     for (const k of dto.attachmentKeys ?? []) this.storage.assertOwned(k, user.id, 'request');
-    const { attachmentKeys, publish, preferredDate, preferredDateTo, professionalId, ...rest } = dto;
+    const { attachmentKeys, publish, professionalId, ...rest0 } = dto;
+    const { preferredDate, preferredDateTo, ...rest } = { ...rest0, ...availabilityFields(dto) };
     if (preferredDate && preferredDateTo && new Date(preferredDateTo) < new Date(preferredDate)) throw new BadRequestException('The end date must be on or after the start date');
     if (professionalId) {
       await this.assertDirectTarget(user, professionalId, dto.categoryId, u.countryCode);
@@ -65,7 +91,10 @@ export class RequestsService {
     if (dto.categoryId) await this.categories.getForCountry(dto.categoryId, req.countryCode);
     await this.prisma.serviceRequest.update({
       where: { id },
-      data: { ...dto, preferredDate: dto.preferredDate ? new Date(dto.preferredDate) : undefined, preferredDateTo: dto.preferredDateTo ? new Date(dto.preferredDateTo) : undefined },
+      data: (() => {
+        const d = { ...dto, ...(dto.availabilityMode ? availabilityFields(dto) : {}) };
+        return { ...d, preferredDate: d.preferredDate ? new Date(d.preferredDate) : d.availabilityMode ? null : undefined, preferredDateTo: d.preferredDateTo ? new Date(d.preferredDateTo) : d.availabilityMode ? null : undefined };
+      })(),
     });
     return this.detail(user, id);
   }
@@ -144,7 +173,7 @@ export class RequestsService {
     return pageResult(
       rows.map((r) => ({
         id: r.id, title: r.title, status: r.status, city: r.city, urgency: r.urgency, createdAt: r.createdAt, publishedAt: r.publishedAt, expiresAt: r.expiresAt,
-        preferredDate: r.preferredDate, preferredDateTo: r.preferredDateTo, directTo: r.targetProfessional ? r.targetProfessional.businessName ?? r.targetProfessional.user.name : null,
+        preferredDate: r.preferredDate, preferredDateTo: r.preferredDateTo, availabilityMode: r.availabilityMode, availableWeekdays: r.availableWeekdays, availableDates: r.availableDates, directTo: r.targetProfessional ? r.targetProfessional.businessName ?? r.targetProfessional.user.name : null,
         categoryName: this.categories.pickName(r.category, locale).name,
         offerCount: r.offers.length, pendingOffers: r.offers.filter((o) => o.status === 'PENDING').length, job: r.job,
       })),
@@ -187,7 +216,7 @@ export class RequestsService {
       addressText: showExact ? r.addressText : null,
       lat: showExact ? r.lat : r.lat !== null ? Math.round(r.lat * 100) / 100 : null,
       lng: showExact ? r.lng : r.lng !== null ? Math.round(r.lng * 100) / 100 : null,
-      preferredDate: r.preferredDate, preferredDateTo: r.preferredDateTo, preferredTimeWindow: r.preferredTimeWindow,
+      preferredDate: r.preferredDate, preferredDateTo: r.preferredDateTo, availabilityMode: r.availabilityMode, availableWeekdays: r.availableWeekdays, availableDates: r.availableDates, preferredTimeWindow: r.preferredTimeWindow,
       directTo: r.targetProfessional ? { id: r.targetProfessional.id, name: r.targetProfessional.businessName ?? r.targetProfessional.user.name } : null,
       paymentMethod: r.paymentMethod,
       budgetMinMinor: r.budgetMinMinor, budgetMaxMinor: r.budgetMaxMinor, currency: r.currency,
@@ -234,7 +263,7 @@ export class RequestsService {
         requestId: m.requestId, title: m.request.title, description: m.request.description.slice(0, 220),
         categoryName: this.categories.pickName(m.request.category, locale).name, city: m.request.city,
         distanceKm: m.distanceKm === null ? null : Math.round(m.distanceKm), urgency: m.request.urgency, serviceMode: m.request.serviceMode,
-        preferredDate: m.request.preferredDate, preferredDateTo: m.request.preferredDateTo, direct: m.request.targetProfessionalId === pid, paymentMethod: m.request.paymentMethod, budgetMinMinor: m.request.budgetMinMinor, budgetMaxMinor: m.request.budgetMaxMinor, currency: m.request.currency,
+        preferredDate: m.request.preferredDate, preferredDateTo: m.request.preferredDateTo, availabilityMode: m.request.availabilityMode, availableWeekdays: m.request.availableWeekdays, availableDates: m.request.availableDates, direct: m.request.targetProfessionalId === pid, paymentMethod: m.request.paymentMethod, budgetMinMinor: m.request.budgetMinMinor, budgetMaxMinor: m.request.budgetMaxMinor, currency: m.request.currency,
         status: m.request.status, notifiedAt: m.notifiedAt, viewed: !!m.viewedAt, declined: !!m.declinedAt,
         offerCount: m.request._count.offers, attachmentCount: m.request._count.attachments, myOffer: m.request.offers[0] ?? null,
         expiresAt: m.request.expiresAt,

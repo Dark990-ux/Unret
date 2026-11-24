@@ -11,6 +11,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { majorToMinor } from '@/lib/format';
 import { useT } from '@/lib/i18n';
+import { AvailabilityPicker, When, whenBody, whenOk } from '@/components/availability-picker';
 
 function NewRequest() {
   const { t } = useT();
@@ -18,6 +19,7 @@ function NewRequest() {
   const router = useRouter();
   const sp = useSearchParams();
   const { flat } = useCategories();
+  const [when, setWhen] = useState<When>({ mode: 'any', days: [], dates: [] });
   const [f, setF] = useState({
     categoryId: sp.get('category') ?? '', title: '', description: '', serviceMode: 'ON_SITE', city: me?.city ?? '', lat: undefined as number | undefined, lng: undefined as number | undefined,
     addressText: me?.addressText ?? '', preferredDate: '', preferredTimeWindow: '', budgetMin: '', budgetMax: '', urgency: 'NORMAL',
@@ -46,7 +48,7 @@ function NewRequest() {
           categoryId: f.categoryId, title: f.title, description: f.description, serviceMode: f.serviceMode,
           city: f.serviceMode === 'REMOTE' ? undefined : f.city, lat: f.serviceMode === 'REMOTE' ? undefined : f.lat, lng: f.serviceMode === 'REMOTE' ? undefined : f.lng,
           addressText: f.serviceMode === 'REMOTE' ? undefined : f.addressText || undefined,
-          preferredDate: f.preferredDate ? new Date(f.preferredDate + 'T12:00:00').toISOString() : undefined, preferredTimeWindow: f.preferredTimeWindow || undefined,
+          ...whenBody(when), preferredTimeWindow: f.preferredTimeWindow || undefined,
           budgetMinMinor: f.budgetMin ? majorToMinor(f.budgetMin) : undefined, budgetMaxMinor: f.budgetMax ? majorToMinor(f.budgetMax) : undefined,
           urgency: f.urgency, attachmentKeys: files.map((x) => x.key), publish, paymentMethod: payment ?? undefined,
         },
@@ -111,11 +113,11 @@ function NewRequest() {
 
         <Card className="space-y-4 p-5 sm:p-6">
           <h2 className="font-semibold text-ink dark:text-white">3. {t('When and budget')}</h2>
+          <AvailabilityPicker value={when} onChange={setWhen} />
           <div className="grid gap-4 sm:grid-cols-3">
-            <Field label={t('Preferred date')}><Input type="date" min={new Date().toISOString().slice(0, 10)} value={f.preferredDate} onChange={(e) => setF({ ...f, preferredDate: e.target.value })} /></Field>
-            <Field label={t('Preferred time')}>
+            <Field label={t('Time of day')}>
               <Select value={f.preferredTimeWindow} onChange={(e) => setF({ ...f, preferredTimeWindow: e.target.value })}>
-                <option value="">{t('Flexible')}</option><option value="morning">{t('Morning')}</option><option value="afternoon">{t('Afternoon')}</option><option value="evening">{t('Evening')}</option>
+                <option value="">{t('Any time')}</option><option value="morning">{t('Morning')}</option><option value="afternoon">{t('Afternoon')}</option><option value="evening">{t('Evening')}</option>
               </Select>
             </Field>
             <Field label={t('Urgency')}>
@@ -139,7 +141,7 @@ function NewRequest() {
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button type="button" variant="ghost" onClick={() => router.back()} className="sm:mr-auto">‹ {t('Back')}</Button>
           <Button type="button" variant="outline" loading={busy === 'draft'} disabled={!f.categoryId || !f.title} onClick={() => submit(false)}>{t('Save as draft')}</Button>
-          <Button type="submit" size="lg" loading={busy === 'publish'} disabled={!payment} title={!payment ? t('Choose how you will pay to publish the request.') : undefined}>{t('Publish request')}</Button>
+          <Button type="submit" size="lg" loading={busy === 'publish'} disabled={!payment || !whenOk(when)} title={!payment ? t('Choose how you will pay to publish the request.') : !whenOk(when) ? t('Choose the days when you are available.') : undefined}>{t('Publish request')}</Button>
         </div>
       </form>
     </Container>

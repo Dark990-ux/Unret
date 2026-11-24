@@ -564,6 +564,12 @@ model ServiceRequest {
   /// End of the preferred period (inclusive day), when the customer picked a date range.
   preferredDateTo      DateTime?
   preferredTimeWindow  String? // e.g. "morning", "14:00-18:00"
+  /// When the customer is available for the work: "any" (every day), "weekdays" or "dates"; null = single date / flexible (older requests)
+  availabilityMode     String?
+  /// 0 = Sunday … 6 = Saturday (same numbering as working hours)
+  availableWeekdays    Int[]          @default([])
+  /// Specific days, "YYYY-MM-DD" (local dates, no time zone)
+  availableDates       String[]       @default([])
   /// Set when the customer sent the request directly to one professional (from their calendar).
   targetProfessionalId String?
   budgetMinMinor       Int?

@@ -9,6 +9,7 @@ import { date, dateTime, money, period } from '@/lib/format';
 import { useApi } from '@/lib/hooks';
 import { openChat } from '@/lib/chat';
 import { useT } from '@/lib/i18n';
+import { describeAvailability } from '@/lib/availability';
 import { useRealtime } from '@/lib/realtime';
 
 export default function RequestDetail() {
@@ -88,7 +89,7 @@ export default function RequestDetail() {
         <Card>
           <Text>{r.description}</Text>
           <KV label={t('Location')} value={r.serviceMode === 'REMOTE' ? t('Remote') : [r.addressText, r.city].filter(Boolean).join(', ')} />
-          <KV label={t('Preferred date')} value={period(r.preferredDate, r.preferredDateTo, intl) ?? t('Flexible')} />
+          <KV label={t('Available')} value={`${describeAvailability(r, t, intl) ?? period(r.preferredDate, r.preferredDateTo, intl) ?? t('Flexible')}${r.preferredTimeWindow ? ` · ${({ morning: t('Morning'), afternoon: t('Afternoon'), evening: t('Evening') } as Record<string, string>)[r.preferredTimeWindow] ?? r.preferredTimeWindow}` : ''}`} />
           <KV label={t('Budget')} value={r.budgetMaxMinor ? money(r.budgetMaxMinor, r.currency, intl) : t('Not specified')} />
           {r.paymentMethod && <KV label={t('Payment')} value={`${methodIcon(r.paymentMethod)} ${t(methodLabel(r.paymentMethod))}`} />}
           {open && <KV label={t('Open until')} value={date(r.expiresAt, intl)} />}

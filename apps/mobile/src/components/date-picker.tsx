@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, View } from 'react-native';
 import { useT } from '@/lib/i18n';
 import { radius, useTheme } from './theme';
@@ -13,9 +13,11 @@ const TIMES = Array.from({ length: 29 }, (_, i) => [7 + Math.floor(i / 2), (i % 
  * Pop-up month calendar: tap a day (past days are greyed out); in date-and-time mode, then tap a time.
  * Used where the platform has no native picker (the web build of the app).
  */
-export function CalendarSheet({ visible, value, mode, onClose, onPick, minDate }: {
-  visible: boolean; value: Date | null; mode: 'date' | 'datetime'; minDate?: Date;
-  onClose: () => void; onPick: (d: Date) => void;
+export function CalendarSheet({ visible, value, mode, onClose, onPick, minDate, values, onPickMany }: {
+  visible: boolean; value: Date | null; mode: 'date' | 'datetime' | 'multi'; minDate?: Date;
+  onClose: () => void; onPick?: (d: Date) => void;
+  /** mode "multi": several days, confirmed with Done */
+  values?: Date[]; onPickMany?: (d: Date[]) => void;
 }) {
   const th = useTheme();
   const { t, intl } = useT();
@@ -23,6 +25,8 @@ export function CalendarSheet({ visible, value, mode, onClose, onPick, minDate }
   const min = startOfDay(minDate ?? today);
   const [month, setMonth] = useState(() => { const b = value ?? min; return new Date(b.getFullYear(), b.getMonth(), 1); });
   const [day, setDay] = useState<Date | null>(value ? startOfDay(value) : null);
+  const [many, setMany] = useState<Date[]>(values ?? []);
+  useEffect(() => { if (visible && mode === 'multi') setMany(values ?? []); }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const weekdays = useMemo(() => Array.from({ length: 7 }, (_, i) => new Date(2024, 0, 1 + i).toLocaleDateString(intl, { weekday: 'narrow' })), [intl]); // Monday first
   const cells = useMemo(() => {
@@ -33,12 +37,13 @@ export function CalendarSheet({ visible, value, mode, onClose, onPick, minDate }
   const canPrev = new Date(month.getFullYear(), month.getMonth(), 0) >= min;
 
   const pickDay = (d: Date) => {
+    if (mode === 'multi') { setMany((l) => (l.some((x) => sameDay(x, d)) ? l.filter((x) => !sameDay(x, d)) : [...l, d].sort((a, b) => +a - +b))); return; }
     setDay(d);
-    if (mode === 'date') { onPick(d); onClose(); }
+    if (mode === 'date') { onPick?.(d); onClose(); }
   };
   const pickTime = (h: number, m: number) => {
     if (!day) return;
-    onPick(new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m));
+    onPick?.(new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m));
     onClose();
   };
   const now = new Date();
@@ -64,7 +69,7 @@ export function CalendarSheet({ visible, value, mode, onClose, onPick, minDate }
             {cells.map((d, i) => {
               if (!d) return <View key={`e${i}`} style={{ width: `${100 / 7}%`, height: 44 }} />;
               const past = d < min;
-              const selected = day && sameDay(d, day);
+              const selected = mode === 'multi' ? many.some((x) => sameDay(x, d)) : day && sameDay(d, day);
               const isToday = sameDay(d, today);
               return (
                 <View key={d.toISOString()} style={{ width: `${100 / 7}%`, height: 44, alignItems: 'center', justifyContent: 'center' }}>
@@ -98,10 +103,20 @@ export function CalendarSheet({ visible, value, mode, onClose, onPick, minDate }
               </View>
             ) : <Text variant="small">{t('Choose a day, then a time.')}</Text>
           )}
-          <Row style={{ justifyContent: 'space-between' }}>
-            <Button small variant="ghost" title={t('Today')} onPress={() => { setMonth(new Date(today.getFullYear(), today.getMonth(), 1)); pickDay(today); }} />
-            <Button small variant="outline" title={t('Close')} onPress={onClose} />
-          </Row>
+          {mode === 'multi' ? (
+            <Row style={{ justifyContent: 'space-between' }}>
+              <Text variant="small">{many.length ? t('{n} days selected', { n: many.length }) : t('Tap every day that suits you.')}</Text>
+              <Row>
+                {many.length > 0 && <Button small variant="ghost" title={t('Clear')} onPress={() => setMany([])} />}
+                <Button small title={t('Done')} onPress={() => { onPickMany?.(many); onClose(); }} />
+              </Row>
+            </Row>
+          ) : (
+            <Row style={{ justifyContent: 'space-between' }}>
+              <Button small variant="ghost" title={t('Today')} onPress={() => { setMonth(new Date(today.getFullYear(), today.getMonth(), 1)); pickDay(today); }} />
+              <Button small variant="outline" title={t('Close')} onPress={onClose} />
+            </Row>
+          )}
         </Pressable>
       </Pressable>
     </Modal>

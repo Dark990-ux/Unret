@@ -13,6 +13,7 @@ import { useAuth } from '@/lib/auth';
 import { date, dateTime, money, period, responseTime } from '@/lib/format';
 import { useAction, useApi } from '@/lib/hooks';
 import { useT } from '@/lib/i18n';
+import { describeAvailability } from '@/lib/availability';
 import { useRealtime } from '@/lib/realtime';
 
 export default function Page() {
@@ -126,7 +127,7 @@ function RequestDetail() {
             <p className="whitespace-pre-line text-sm text-ink-soft dark:text-white/75">{r.description}</p>
             <KeyValue items={[
               [t('Location'), r.serviceMode === 'REMOTE' ? t('Remote') : <span><MapPin className="mr-1 inline h-3.5 w-3.5 align-[-2px]" />{[r.addressText, r.city].filter(Boolean).join(', ')}</span>],
-              [t('Preferred date'), r.preferredDate ? `${period(r.preferredDate, r.preferredDateTo, intl)}${r.preferredTimeWindow ? ` · ${t(r.preferredTimeWindow[0].toUpperCase() + r.preferredTimeWindow.slice(1))}` : ''}` : t('Flexible')],
+              [t('Available'), `${describeAvailability(r, t, intl) ?? (r.preferredDate ? period(r.preferredDate, r.preferredDateTo, intl) : t('Flexible'))}${r.preferredTimeWindow ? ` · ${t(r.preferredTimeWindow[0].toUpperCase() + r.preferredTimeWindow.slice(1))}` : ''}`],
               [t('Budget'), r.budgetMinMinor || r.budgetMaxMinor ? `${r.budgetMinMinor ? money(r.budgetMinMinor, r.currency, intl) : ''}${r.budgetMinMinor && r.budgetMaxMinor ? ' – ' : ''}${r.budgetMaxMinor ? money(r.budgetMaxMinor, r.currency, intl) : ''}` : t('Not specified')],
               [t('Payment'), r.paymentMethod ? `${methodIcon(r.paymentMethod)} ${t(methodLabel(r.paymentMethod))}` : t('Not specified')],
               [t('Urgency'), t({ LOW: 'Not urgent', NORMAL: 'Normal', HIGH: 'Soon', EMERGENCY: 'Emergency' }[r.urgency as string] ?? r.urgency)],
