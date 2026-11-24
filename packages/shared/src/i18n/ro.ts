@@ -1086,4 +1086,5 @@ export const ro: Record<string, string> = {
   "All prices are in euros and include VAT.": "Toate prețurile sunt în euro și includ TVA.",
   "Up to 8 new requests per day": "Până la 8 cereri noi pe zi",
   "Chat with the customers who contact you": "Chat cu clienții care te contactează",
+  "Choose a day, then a time.": "Alege o zi, apoi o oră.",
 };

@@ -7,6 +7,7 @@ import { citiesFor } from '@unret/shared';
 import { absUrl, api, Purpose, upload } from '@/lib/api';
 import { dateTime } from '@/lib/format';
 import { useT } from '@/lib/i18n';
+import { CalendarSheet } from './date-picker';
 import { PlanBadge, PromotedLabel } from './plans';
 import { Avatar, Badge, Button, Card, Input, Row, Select, Stars, Text } from './ui';
 import { radius, useTheme } from './theme';
@@ -94,25 +95,17 @@ export function DateTimeField({ value, onChange, mode = 'datetime', placeholder 
   const th = useTheme();
   const { t, intl } = useT();
   const [show, setShow] = useState<null | 'date' | 'time'>(null);
-  if (Platform.OS === 'web') {
-    const fmt = (d: Date) => {
-      const p = (n: number) => String(n).padStart(2, '0');
-      const day = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-      return mode === 'date' ? day : `${day} ${p(d.getHours())}:${p(d.getMinutes())}`;
-    };
-    return <Input defaultValue={value ? fmt(value) : ''} placeholder={mode === 'date' ? 'YYYY-MM-DD' : 'YYYY-MM-DD HH:mm'}
-      onChangeText={(s) => { if (!s) return onChange(null); const d = new Date(s.replace(' ', 'T')); if (!isNaN(+d)) onChange(d); }} />;
-  }
   const label = value ? (mode === 'date' ? value.toLocaleDateString(intl) : dateTime(value, intl)) : placeholder ?? t('Choose');
   return (
     <View>
       <Row style={{ flexWrap: 'nowrap' }}>
-        <Pressable onPress={() => setShow('date')} accessibilityRole="button" style={{ flex: 1, borderWidth: 1, borderColor: th.line, borderRadius: radius.md, minHeight: 46, paddingHorizontal: 12, justifyContent: 'center', backgroundColor: th.card }}>
+        <Pressable onPress={() => setShow('date')} accessibilityRole="button" accessibilityLabel={label} testID="date-field" style={{ flex: 1, borderWidth: 1, borderColor: th.line, borderRadius: radius.md, minHeight: 46, paddingHorizontal: 12, justifyContent: 'center', backgroundColor: th.card }}>
           <Text color={value ? th.text : th.muted}>📅 {label}</Text>
         </Pressable>
         {value && <Button small variant="ghost" title="✕" onPress={() => onChange(null)} />}
       </Row>
-      {show && (
+      {Platform.OS === 'web' && <CalendarSheet visible={!!show} value={value} mode={mode} onClose={() => setShow(null)} onPick={onChange} />}
+      {show && Platform.OS !== 'web' && (
         <DateTimePicker value={value ?? new Date()} mode={Platform.OS === 'ios' && mode === 'datetime' ? 'datetime' : show} minimumDate={new Date()} minuteInterval={15}
           display={Platform.OS === 'ios' ? 'inline' : 'default'}
           onChange={(e, d) => {
