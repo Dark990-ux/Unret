@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Image, View } from 'react-native';
+import { Image, Pressable, View } from 'react-native';
 import { CategorySelect, CitySelect, useCategories, useUploader } from '@/components/domain';
 import { CalendarSheet } from '@/components/date-picker';
 import { WEEK, weekdayName, ymd } from '@/lib/availability';
@@ -57,9 +57,19 @@ export default function NewRequest() {
         <Field label={t('Description')} hint={t('Describe the job: what, how much, any details that help professionals quote accurately.')} required><Input multiline value={f.description} onChangeText={(description) => setF({ ...f, description })} accessibilityLabel={t('Description')} /></Field>
         <Text variant="label">{t('Photos or documents')}</Text>
         <Row>
-          {files.map((x) => <Image key={x.key} source={{ uri: absUrl(x.url)! }} style={{ width: 64, height: 64, borderRadius: 10 }} />)}
-          <Button small variant="outline" title={t('Add photos')} loading={up.busy} onPress={async () => { const r = await up.pickImage(); if (r) setFiles((s) => [...s, r]); }} />
+          {files.map((x) => (
+            <View key={x.key} testID="photo-thumb">
+              <Image source={{ uri: absUrl(x.url)! }} style={{ width: 72, height: 72, borderRadius: 12 }} accessibilityLabel={t('Photo')} />
+              <Pressable onPress={() => setFiles((s) => s.filter((y) => y.key !== x.key))} accessibilityRole="button" accessibilityLabel={t('Remove photo')} hitSlop={8}
+                style={{ position: 'absolute', top: -6, right: -6, width: 24, height: 24, borderRadius: 12, backgroundColor: '#14143a', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#fff' }}>
+                <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>✕</Text>
+              </Pressable>
+            </View>
+          ))}
+          {files.length < 10 && <Button small variant="outline" title={files.length ? `＋ ${t('Add more photos')}` : `📷 ${t('Add photos')}`} loading={up.busy}
+            onPress={async () => { const r = await up.pickImages(10 - files.length); if (r.length) setFiles((s) => [...s, ...r]); }} />}
         </Row>
+        <Text variant="small">{t('Up to 10 photos. Photos help professionals give an accurate price.')}</Text>
         {up.error && <Alert>{up.error}</Alert>}
       </Card>
       <Card>

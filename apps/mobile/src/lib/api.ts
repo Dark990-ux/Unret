@@ -40,7 +40,7 @@ export const getAccessToken = () => session?.accessToken ?? null;
 /** Server file links may be relative (same-origin on web); make them absolute for the device. */
 export function absUrl(u: string | null | undefined) {
   if (!u) return null;
-  return u.startsWith('http') ? u : `${API_ORIGIN}${u}`;
+  return /^(https?:|blob:|data:|file:)/.test(u) ? u : `${API_ORIGIN}${u}`;
 }
 
 let refreshing: Promise<boolean> | null = null;

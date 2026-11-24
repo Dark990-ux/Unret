@@ -1107,4 +1107,10 @@ export const ro: Record<string, string> = {
   "Choose at least one day of the week": "Alege cel puțin o zi a săptămânii",
   "Choose at least one date": "Alege cel puțin o dată",
   "Dates in the past cannot be chosen": "Nu se pot alege date din trecut",
+  "Add more photos": "Adaugă mai multe poze",
+  "Photo": "Poză",
+  "Remove photo": "Șterge poza",
+  "Up to 10 photos. Photos help professionals give an accurate price.": "Până la 10 poze. Pozele îi ajută pe profesioniști să dea un preț corect.",
+  "Choose a photo first.": "Alege mai întâi o poză.",
+  "This file is larger than 10 MB.": "Fișierul are peste 10 MB.",
 };

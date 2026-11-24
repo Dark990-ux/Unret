@@ -129,6 +129,18 @@ export function useUploader(purpose: Purpose) {
     const a = r.assets[0];
     return run({ uri: a.uri, name: a.fileName ?? `photo-${Date.now()}.jpg`, mimeType: a.mimeType ?? 'image/jpeg', file: (a as any).file });
   };
+  /** Several photos at once (up to `max`); uploads them one by one. */
+  const pickImages = async (max = 10) => {
+    if (max <= 0) return [];
+    const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7, allowsMultipleSelection: true, selectionLimit: max });
+    if (r.canceled) return [];
+    const out: Awaited<ReturnType<typeof upload>>[] = [];
+    for (const a of r.assets.slice(0, max)) {
+      const u = await run({ uri: a.uri, name: a.fileName ?? `photo-${Date.now()}.jpg`, mimeType: a.mimeType ?? 'image/jpeg', file: (a as any).file });
+      if (u) out.push(u);
+    }
+    return out;
+  };
   const pickDocument = async () => {
     const r = await DocumentPicker.getDocumentAsync({ type: ['application/pdf', 'image/jpeg', 'image/png'], copyToCacheDirectory: true });
     if (r.canceled) return null;
@@ -139,5 +151,5 @@ export function useUploader(purpose: Purpose) {
     setBusy(true); setError(null);
     try { return await upload(f, purpose); } catch (e) { setError((e as Error).message); return null; } finally { setBusy(false); }
   };
-  return { pickImage, pickDocument, busy, error };
+  return { pickImage, pickImages, pickDocument, busy, error };
 }
