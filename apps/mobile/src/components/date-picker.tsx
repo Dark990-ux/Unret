@@ -122,3 +122,44 @@ export function CalendarSheet({ visible, value, mode, onClose, onPick, minDate, 
     </Modal>
   );
 }
+
+const pad = (n: number) => String(n).padStart(2, '0');
+/** Times every 30 minutes; "24:00" means end of day. */
+export const HALF_HOURS = [...Array.from({ length: 48 }, (_, i) => `${pad(Math.floor(i / 2))}:${pad((i % 2) * 30)}`), '24:00'];
+
+/** Button showing a time ("08:00 ▾") that opens a list to pick from. */
+export function TimeSelect({ value, onChange, label, min, max, testID }: { value: string; onChange: (v: string) => void; label: string; min?: string; max?: string; testID?: string }) {
+  const th = useTheme();
+  const { t } = useT();
+  const [open, setOpen] = useState(false);
+  // Start times: 00:00–23:30 (before max). End times: after min, up to 24:00.
+  const options = HALF_HOURS.filter((x) => (min ? x > min : x !== '24:00') && (!max || x < max));
+  return (
+    <>
+      <Pressable onPress={() => setOpen(true)} accessibilityRole="button" accessibilityLabel={`${label}: ${value}`} testID={testID}
+        style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: th.line, borderRadius: radius.md, paddingHorizontal: 12, minHeight: 42, backgroundColor: th.card }}>
+        <Text style={{ fontVariant: ['tabular-nums'], fontWeight: '600' }}>{value}</Text>
+        <Text style={{ color: th.muted, fontSize: 11 }}>▾</Text>
+      </Pressable>
+      {open && <Modal visible transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+        <Pressable onPress={() => setOpen(false)} style={{ flex: 1, backgroundColor: 'rgba(12,12,29,0.45)', justifyContent: 'flex-end' }}>
+          <Pressable onPress={() => undefined} testID="time-sheet" style={{ backgroundColor: th.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 16, paddingBottom: 28, gap: 12, maxHeight: '70%', width: '100%', maxWidth: 520, alignSelf: 'center' }}>
+            <Text variant="h2">{label}</Text>
+            <ScrollView contentContainerStyle={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {options.map((o) => {
+                const on = o === value;
+                return (
+                  <Pressable key={o} onPress={() => { onChange(o); setOpen(false); }} accessibilityRole="button" accessibilityLabel={o} accessibilityState={{ selected: on }}
+                    style={{ width: '22%', paddingVertical: 10, alignItems: 'center', borderRadius: 999, borderWidth: 1, borderColor: on ? th.brand : th.line, backgroundColor: on ? th.brand : th.card }}>
+                    <Text color={on ? th.onBrand : th.text} style={{ fontVariant: ['tabular-nums'] }}>{o}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+            <Button small variant="outline" title={t('Close')} onPress={() => setOpen(false)} />
+          </Pressable>
+        </Pressable>
+      </Modal>}
+    </>
+  );
+}

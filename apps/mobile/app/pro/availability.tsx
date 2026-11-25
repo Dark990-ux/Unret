@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Switch } from 'react-native';
+import { Switch, View } from 'react-native';
 import { DateTimeField } from '@/components/domain';
+import { TimeSelect } from '@/components/date-picker';
 import { useTheme } from '@/components/theme';
 import { Alert, Button, Card, Field, Input, Loader, Row, Screen, Section, Text } from '@/components/ui';
 import { api } from '@/lib/api';
@@ -24,6 +25,8 @@ export default function Availability() {
   if (loading || !data) return <Loader />;
   const run = (fn: () => Promise<unknown>, ok: string) => fn().then(() => { setMsg({ tone: 'green', text: ok }); reload(); appts.reload(); }).catch((e) => setMsg({ tone: 'red', text: e.message }));
   const valid = (s: string) => /^([01]\d|2[0-3]):[0-5]\d$/.test(s);
+  const validEnd = (s: string) => valid(s) || s === '24:00';
+  const hours = (r: Rule) => { const m = (x: string) => Number(x.slice(0, 2)) * 60 + Number(x.slice(3)); const h = (m(r.endTime) - m(r.startTime)) / 60; return h > 0 ? t('{n} h', { n: Number.isInteger(h) ? h : h.toFixed(1) }) : ''; };
   const setting = (k: string, v: unknown) => run(() => api('/availability/me/settings', { method: 'PUT', body: { [k]: v } }), t('Settings saved.'));
 
   return (
@@ -54,23 +57,44 @@ export default function Availability() {
         </Card>
       </Section>
       <Section title={t('Weekly working hours')}>
-        <Card>
+        <Card style={{ gap: 4 }}>
+          <Text variant="small">{t('Turn on the days you work and pick your hours. Customers see this in your calendar.')}</Text>
           {[1, 2, 3, 4, 5, 6, 0].map((d) => {
             const idx = rules.findIndex((r) => r.weekday === d);
             const r = rules[idx];
+            const set = (patch: Partial<Rule>) => setRules(rules.map((x, i) => (i === idx ? { ...x, ...patch } : x)));
             return (
-              <Row key={d} style={{ flexWrap: 'nowrap', minHeight: 44 }}>
-                <Text style={{ width: 90 }}>{t(DAYS[d])}</Text>
-                {r ? (<>
-                  <Input value={r.startTime} onChangeText={(v) => setRules(rules.map((x, i) => (i === idx ? { ...x, startTime: v } : x)))} style={{ flex: 1, minHeight: 40, paddingVertical: 6 }} accessibilityLabel={`${t(DAYS[d])} ${t('From')}`} />
-                  <Text>–</Text>
-                  <Input value={r.endTime} onChangeText={(v) => setRules(rules.map((x, i) => (i === idx ? { ...x, endTime: v } : x)))} style={{ flex: 1, minHeight: 40, paddingVertical: 6 }} accessibilityLabel={`${t(DAYS[d])} ${t('To')}`} />
-                  <Button small variant="ghost" title="✕" onPress={() => setRules(rules.filter((_, i) => i !== idx))} />
-                </>) : <><Text variant="small" style={{ flex: 1 }}>{t('Closed')}</Text><Button small variant="soft" title={t('Add hours')} onPress={() => setRules([...rules, { weekday: d, startTime: '09:00', endTime: '17:00' }])} /></>}
-              </Row>
+              <View key={d} testID={`day-${d}`} style={{ paddingVertical: 8, borderTopWidth: d === 1 ? 0 : 1, borderColor: th.line, gap: 8 }}>
+                <Row style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
+                  <Text variant="label" style={{ flex: 1 }}>{t(DAYS[d])}</Text>
+                  {!r && <Text variant="small" style={{ marginRight: 8 }}>{t('Closed')}</Text>}
+                  <Switch value={!!r} onValueChange={(on) => setRules(on ? [...rules, (() => { const tpl = rules.find((x) => x.weekday === 1) ?? { startTime: '09:00', endTime: '17:00' }; return { weekday: d, startTime: tpl.startTime, endTime: tpl.endTime }; })()] : rules.filter((x) => x.weekday !== d))}
+                    trackColor={{ true: th.brand }} thumbColor="#fff" {...({ activeThumbColor: '#fff' } as object)} accessibilityLabel={t(DAYS[d])} />
+                </Row>
+                {r && (
+                  <Row gap={8}>
+                    <TimeSelect value={r.startTime} label={`${t(DAYS[d])} · ${t('Start')}`} max={r.endTime} onChange={(startTime) => set({ startTime })} testID={`start-${d}`} />
+                    <Text>–</Text>
+                    <TimeSelect value={r.endTime} label={`${t(DAYS[d])} · ${t('End')}`} min={r.startTime} onChange={(endTime) => set({ endTime })} testID={`end-${d}`} />
+                    <Text variant="small">{hours(r)}</Text>
+                  </Row>
+                )}
+              </View>
             );
           })}
-          <Button title={t('Save working hours')} disabled={!rules.every((r) => valid(r.startTime) && valid(r.endTime))} onPress={() => run(() => api('/availability/me/rules', { method: 'PUT', body: { rules } }), t('Working hours saved.'))} />
+          {rules.some((r) => r.weekday === 1) && (
+            <Button small variant="ghost" title={t('Copy Monday to all weekdays')} onPress={() => {
+              const mon = rules.find((r) => r.weekday === 1)!;
+              setRules([...rules.filter((r) => ![1, 2, 3, 4, 5].includes(r.weekday)), ...[1, 2, 3, 4, 5].map((weekday) => ({ weekday, startTime: mon.startTime, endTime: mon.endTime }))]);
+            }} />
+          )}
+          <Button title={t('Save working hours')} onPress={() => {
+            const bad = rules.find((r) => !valid(r.startTime) || !validEnd(r.endTime) || r.endTime <= r.startTime);
+            if (bad) return setMsg({ tone: 'red', text: t('{day}: the finishing time must be after the starting time.', { day: t(DAYS[bad.weekday]) }) });
+            if (!rules.length) return setMsg({ tone: 'red', text: t('Turn on at least one working day.') });
+            run(() => api('/availability/me/rules', { method: 'PUT', body: { rules } }), t('Working hours saved.'));
+          }} />
+          {msg && <Alert tone={msg.tone}>{msg.text}</Alert>}
         </Card>
       </Section>
       <Section title={t('Time off and blocked periods')}>

@@ -1113,4 +1113,11 @@ export const ro: Record<string, string> = {
   "Up to 10 photos. Photos help professionals give an accurate price.": "Până la 10 poze. Pozele îi ajută pe profesioniști să dea un preț corect.",
   "Choose a photo first.": "Alege mai întâi o poză.",
   "This file is larger than 10 MB.": "Fișierul are peste 10 MB.",
+  "Turn on the days you work and pick your hours. Customers see this in your calendar.": "Pornește zilele în care lucrezi și alege orele. Clienții le văd în calendarul tău.",
+  "Start": "Început",
+  "End": "Sfârșit",
+  "Copy Monday to all weekdays": "Copiază programul de luni pe toate zilele lucrătoare",
+  "{day}: the finishing time must be after the starting time.": "{day}: ora de sfârșit trebuie să fie după ora de început.",
+  "Turn on at least one working day.": "Pornește cel puțin o zi lucrătoare.",
+  "{n} h": "{n} h",
 };
