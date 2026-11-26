@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsArray, IsBoolean, IsEnum, IsInt, IsOptional, IsString, Length, Matches, ValidateNested } from 'class-validator';
 import { VerificationType } from '@prisma/client';
-import { AuthUser, CurrentUser, Public, Roles } from '../../common/decorators';
+import { AuthUser, CurrentUser, Public, Permission, Roles } from '../../common/decorators';
 import { CategoriesService } from './categories.service';
 
 class TranslationDto {
@@ -43,7 +43,7 @@ export class CategoriesController {
 
 @ApiTags('admin')
 @ApiBearerAuth()
-@Roles('ADMIN')
+@Permission('catalog.manage')
 @Controller('admin/categories')
 export class AdminCategoriesController {
   constructor(private categories: CategoriesService) {}

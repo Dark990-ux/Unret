@@ -27,6 +27,13 @@ export class MfaCodeDto {
   @ApiProperty() @IsString() @Length(6, 6) code: string;
 }
 
+export class ForgotPasswordDto {
+  @IsString() @MaxLength(200) email: string;
+}
+export class ResetPasswordDto {
+  @IsString() @MaxLength(200) token: string;
+  @IsString() @MinLength(10) @MaxLength(128) password: string;
+}
 export class ChangePasswordDto {
   @IsString() currentPassword: string;
   @IsString() @MinLength(10) @MaxLength(128) newPassword: string;

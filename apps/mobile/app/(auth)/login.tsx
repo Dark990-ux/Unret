@@ -1,4 +1,4 @@
-import { Link } from 'expo-router';
+import { Link, router } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
 import { hero, useTheme } from '@/components/theme';
@@ -38,6 +38,7 @@ export default function Login() {
       )}
       {err && <Alert>{err}</Alert>}
       <Button title={mfa ? t('Verify') : t('Sign in')} onPress={submit} loading={busy} disabled={!id || !pw} />
+      {!mfa && <Button small variant="ghost" title={t('Forgot password?')} onPress={() => router.push('/forgot')} />}
       <Row style={{ justifyContent: 'center', marginTop: 8 }}>
         <Text variant="small">{t('New to UNRET?')}</Text>
         <Link href="/register"><Text style={{ color: th.brand, fontWeight: '600' }}>{t('Create an account')}</Text></Link>

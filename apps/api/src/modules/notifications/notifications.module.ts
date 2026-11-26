@@ -8,6 +8,6 @@ import { QueueService } from './queue.service';
 @Module({
   controllers: [NotificationsController],
   providers: [NotificationsService, QueueService, EmailChannel, PushChannel, SmsChannel],
-  exports: [NotificationsService, QueueService],
+  exports: [NotificationsService, QueueService, EmailChannel],
 })
 export class NotificationsModule {}

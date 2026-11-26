@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 import { ScheduleModule } from '@nestjs/schedule';
+import { SupportModule } from './modules/support/support.module';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuditModule } from './common/audit.service';
 import { JwtAuthGuard, RolesGuard } from './common/guards';
@@ -70,6 +71,7 @@ import { VerificationsModule } from './modules/verifications/verifications.modul
     ReportsModule,
     AdminModule,
     SchedulerModule,
+    SupportModule,
   ],
   controllers: [HealthController],
   providers: [

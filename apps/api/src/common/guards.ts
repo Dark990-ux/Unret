@@ -3,7 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from './prisma.service';
-import { AuthUser, IS_PUBLIC, ROLES } from './decorators';
+import { AdminPermission, hasAdminPermission } from '@unret/shared';
+import { AuthUser, PERMISSIONS, IS_PUBLIC, ROLES } from './decorators';
 
 /**
  * Global guard: verifies the bearer access token and re-checks account status
@@ -32,12 +33,13 @@ export class JwtAuthGuard implements CanActivate {
       const payload = await this.jwt.verifyAsync(token, { secret: this.config.getOrThrow('JWT_ACCESS_SECRET') });
       const user = await this.prisma.user.findUnique({
         where: { id: payload.sub },
-        select: { id: true, role: true, status: true, professional: { select: { id: true } } },
+        select: { id: true, role: true, adminRole: true, status: true, professional: { select: { id: true } } },
       });
       if (!user || user.status !== 'ACTIVE') throw new UnauthorizedException('Account is not active');
       req.user = {
         id: user.id,
         role: user.role,
+        adminRole: user.role === 'ADMIN' ? user.adminRole ?? 'OWNER' : null,
         mfa: !!payload.mfa,
         professionalId: user.professional?.id ?? null,
       } satisfies AuthUser;
@@ -55,9 +57,14 @@ export class RolesGuard implements CanActivate {
   constructor(private reflector: Reflector, private config: ConfigService) {}
 
   canActivate(ctx: ExecutionContext): boolean {
-    const roles = this.reflector.getAllAndOverride<string[]>(ROLES, [ctx.getHandler(), ctx.getClass()]);
+    const perms = this.reflector.getAllAndOverride<AdminPermission[]>(PERMISSIONS, [ctx.getHandler(), ctx.getClass()]);
+    let roles = this.reflector.getAllAndOverride<string[]>(ROLES, [ctx.getHandler(), ctx.getClass()]);
+    if (perms?.length) roles = ['ADMIN'];
     if (!roles?.length) return true;
     const user: AuthUser | undefined = ctx.switchToHttp().getRequest().user;
+    if (perms?.length && user?.role === 'ADMIN' && !perms.some((p) => hasAdminPermission(user.adminRole, p))) {
+      throw new ForbiddenException('Your administrator role does not allow this action');
+    }
     if (!user || !roles.includes(user.role)) throw new ForbiddenException('Insufficient permissions');
     if (user.role === 'ADMIN' && roles.includes('ADMIN') && this.config.get('ADMIN_MFA_REQUIRED') === 'true' && !user.mfa) {
       throw new ForbiddenException('Multi-factor authentication required for administrative actions');

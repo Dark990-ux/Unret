@@ -4,7 +4,7 @@ import { createHmac, randomUUID, timingSafeEqual } from 'crypto';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 
-export type FilePurpose = 'avatar' | 'portfolio' | 'request' | 'message' | 'verification' | 'logo';
+export type FilePurpose = 'avatar' | 'portfolio' | 'request' | 'message' | 'verification' | 'logo' | 'support';
 
 const ALLOWED_MIME: Record<FilePurpose, string[]> = {
   avatar: ['image/jpeg', 'image/png', 'image/webp'],
@@ -13,6 +13,7 @@ const ALLOWED_MIME: Record<FilePurpose, string[]> = {
   request: ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
   message: ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
   verification: ['image/jpeg', 'image/png', 'application/pdf'],
+  support: ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
 };
 const MAX_BYTES = 10 * 1024 * 1024;
 

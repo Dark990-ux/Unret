@@ -66,6 +66,14 @@ export default function Account() {
         <Button title={t('Settings')} variant="ghost" onPress={() => router.push('/settings')} style={{ justifyContent: 'flex-start' }} />
       </Card>
       {me.role === 'ADMIN' && <Alert tone="blue">{t('Administration is available on the website.')}</Alert>}
+      <Card>
+        <Text variant="h2">🛟 {t('Help & support')}</Text>
+        <Text variant="small">{t('Questions, problems or ideas? Write to the team that runs UNRET.')}</Text>
+        <Row>
+          <Button small title={t('Help & support')} onPress={() => router.push('/help')} />
+          <Button small variant="outline" title={t('Report a problem')} onPress={() => router.push({ pathname: '/help/new', params: { kind: 'problem' } })} />
+        </Row>
+      </Card>
       <Button title={t('Sign out')} variant="outline" onPress={async () => { await logout(); router.replace('/login'); }} />
       <Text variant="small" style={{ textAlign: 'center' }}>UNRET · {t('Version')} {Constants.expoConfig?.version}</Text>
     </Screen>

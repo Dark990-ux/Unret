@@ -7,7 +7,7 @@ import { checkIban, formatMoney, maskIban } from '@unret/shared';
 import { decrypt, encrypt } from '../../common/crypto';
 import { requirePro } from '../../common/guards';
 import { AuditService } from '../../common/audit.service';
-import { AuthUser, ClientIp, CurrentUser, Public, Roles } from '../../common/decorators';
+import { AuthUser, ClientIp, CurrentUser, Public, Permission, Roles } from '../../common/decorators';
 import { PageQuery, pageResult, paginate } from '../../common/pagination';
 import { PrismaService } from '../../common/prisma.service';
 import { JobsService, paymentSummary } from '../jobs/jobs.service';
@@ -475,14 +475,14 @@ export class PaymentsController {
   }
 
   @ApiBearerAuth()
-  @Roles('ADMIN')
+  @Permission('payments.view')
   @Get('admin')
   adminList(@Query() q: PageQuery, @Query('status') status?: string) {
     return this.payments.adminList({ ...q, status });
   }
 
   @ApiBearerAuth()
-  @Roles('ADMIN')
+  @Permission('payments.manage')
   @Post(':id/refund')
   refund(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: RefundDto) {
     return this.payments.refund(user, id, dto);

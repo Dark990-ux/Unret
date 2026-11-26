@@ -119,6 +119,7 @@ export default function JobDetail() {
       <Section title={t('Need help?')}>
         {can('cancel') && <Button variant="outline" title={t('Cancel job')} onPress={() => setSheet('cancel')} />}
         {can('open_dispute') && <Button variant="outline" title={t('Report a problem / dispute')} onPress={() => setSheet('dispute')} />}
+        <Button variant="ghost" title={`🛟 ${t('Contact UNRET support')}`} onPress={() => router.push({ pathname: '/help/new', params: { kind: 'problem', jobId: j.id, subject: j.request.title } })} />
       </Section>
 
       <ChangeSheet open={sheet === 'change'} onClose={() => setSheet(null)} job={j} busy={busy} onSubmit={(b) => act(`/jobs/${id}/changes`, b)} />

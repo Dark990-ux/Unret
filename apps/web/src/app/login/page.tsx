@@ -46,6 +46,7 @@ function Login() {
             <>
               <Field label={t('Email or phone')}><Input autoComplete="username" value={identifier} onChange={(e) => setIdentifier(e.target.value)} required /></Field>
               <Field label={t('Password')}><Input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required /></Field>
+              <div className="-mt-2 text-right text-sm"><Link href="/forgot-password" className="text-brand-700 hover:underline">{t('Forgot password?')}</Link></div>
             </>
           ) : (
             <Field label={t('Verification code')} hint={t('Enter the 6-digit code from your authenticator app.')}>

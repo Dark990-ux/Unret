@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import {
   Bell, Briefcase, Calendar, ChevronDown, ClipboardList, Globe, Inbox, LayoutDashboard, LogOut, Menu, MessageSquare,
-  Search, Settings, Shield, ShieldCheck, Star, User, Users, Wallet, X, Heart, BarChart3, FolderTree, Flag, Scale, CreditCard, ScrollText, Landmark, Layers, AlertTriangle, Building2, Plus,
+  Search, Settings, Shield, ShieldCheck, Star, User, Users, Wallet, X, Heart, BarChart3, FolderTree, Flag, Scale, CreditCard, ScrollText, Landmark, Layers, AlertTriangle, Building2, Plus, LifeBuoy, UserCog,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useT, LOCALES } from '@/lib/i18n';
@@ -115,6 +115,7 @@ export function SiteHeader() {
                     <MenuItem href="/saved" icon={<Heart className="h-4 w-4" />}>{t('Saved professionals')}</MenuItem>
                     <MenuItem href="/payments" icon={<Wallet className="h-4 w-4" />}>{t('Payments')}</MenuItem>
                     <MenuItem href="/settings" icon={<Settings className="h-4 w-4" />}>{t('Settings')}</MenuItem>
+                    <MenuItem href="/help" icon={<LifeBuoy className="h-4 w-4" />}>{t('Help & support')}</MenuItem>
                     {me.role === 'ADMIN' && <MenuItem href="/admin" icon={<Shield className="h-4 w-4" />}>{t('Administration')}</MenuItem>}
                     <div className="my-1 border-t border-surface-line dark:border-white/10" />
                     <div className="flex items-center gap-2 px-4 py-2 text-sm text-ink-soft dark:text-white/70">
@@ -171,13 +172,14 @@ export function Footer() {
   const { t } = useT();
   return (
     <footer className="mt-20 border-t border-surface-line bg-surface-sunk/60 dark:border-white/10 dark:bg-white/[0.02]">
-      <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:grid-cols-4 sm:px-6">
+      <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:grid-cols-2 lg:grid-cols-5 sm:px-6">
         <div className="space-y-3">
           <Logo />
           <p className="text-sm text-ink-muted dark:text-white/50">{t('Finding and providing professional services, made simple and transparent.')}</p>
         </div>
         <FooterCol title={t('Customers')} links={[['/search', t('Find professionals')], ['/requests/new', t('Post a request')], ['/how-it-works', t('How it works')]]} />
         <FooterCol title={t('Professionals')} links={[['/become-a-pro', t('Become a professional')], ['/pro', t('Professional dashboard')], ['/trust', t('Verification & trust')]]} />
+        <FooterCol title={t('Help')} links={[['/help', t('Help & support')], ['/help/new?kind=contact', t('Contact us')], ['/help/new?kind=problem', t('Report a problem')]]} />
         <FooterCol title="UNRET" links={[['/terms', t('Terms of service')], ['/privacy', t('Privacy policy')], ['/trust', t('Trust & safety')]]} />
       </div>
       <div className="border-t border-surface-line py-4 text-center text-xs text-ink-muted dark:border-white/10">© {new Date().getFullYear()} UNRET · România</div>
@@ -259,20 +261,28 @@ export function ProShell({ children }: { children: React.ReactNode }) {
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const { t } = useT();
-  const items: NavItem[] = [
-    { href: '/admin', label: t('Analytics'), icon: <BarChart3 className="h-4 w-4" /> },
-    { href: '/admin/users', label: t('Users'), icon: <Users className="h-4 w-4" /> },
-    { href: '/admin/verifications', label: t('Verifications'), icon: <ShieldCheck className="h-4 w-4" /> },
-    { href: '/admin/categories', label: t('Categories'), icon: <FolderTree className="h-4 w-4" /> },
-    { href: '/admin/reports', label: t('Reports'), icon: <Flag className="h-4 w-4" /> },
-    { href: '/admin/disputes', label: t('Disputes'), icon: <Scale className="h-4 w-4" /> },
-    { href: '/admin/reviews', label: t('Reviews'), icon: <Star className="h-4 w-4" /> },
-    { href: '/admin/payments', label: t('Payments'), icon: <CreditCard className="h-4 w-4" /> },
-    { href: '/admin/plans', label: t('Subscriptions'), icon: <Layers className="h-4 w-4" /> },
-    { href: '/admin/fraud', label: t('Risk indicators'), icon: <AlertTriangle className="h-4 w-4" /> },
-    { href: '/admin/countries', label: t('Countries'), icon: <Landmark className="h-4 w-4" /> },
-    { href: '/admin/audit', label: t('Audit log'), icon: <ScrollText className="h-4 w-4" /> },
+  const { me } = useAuth();
+  const perms: string[] = (me as any)?.adminPermissions ?? [];
+  // Each administrator sees only what their role allows (the server enforces the same rules).
+  const all: (NavItem & { perm: string })[] = [
+    { href: '/admin', label: t('Overview'), icon: <LayoutDashboard className="h-4 w-4" />, perm: 'dashboard.view' },
+    { href: '/admin/support', label: t('Support'), icon: <LifeBuoy className="h-4 w-4" />, perm: 'tickets.manage' },
+    { href: '/admin/users', label: t('Users'), icon: <Users className="h-4 w-4" />, perm: 'users.view' },
+    { href: '/admin/jobs', label: t('Jobs'), icon: <Briefcase className="h-4 w-4" />, perm: 'jobs.manage' },
+    { href: '/admin/disputes', label: t('Disputes'), icon: <Scale className="h-4 w-4" />, perm: 'disputes.manage' },
+    { href: '/admin/reports', label: t('Reports'), icon: <Flag className="h-4 w-4" />, perm: 'content.moderate' },
+    { href: '/admin/reviews', label: t('Reviews'), icon: <Star className="h-4 w-4" />, perm: 'content.moderate' },
+    { href: '/admin/verifications', label: t('Verifications'), icon: <ShieldCheck className="h-4 w-4" />, perm: 'verifications.manage' },
+    { href: '/admin/payments', label: t('Payments'), icon: <CreditCard className="h-4 w-4" />, perm: 'payments.view' },
+    { href: '/admin/plans', label: t('Subscriptions'), icon: <Layers className="h-4 w-4" />, perm: 'plans.manage' },
+    { href: '/admin/analytics', label: t('Analytics'), icon: <BarChart3 className="h-4 w-4" />, perm: 'analytics.view' },
+    { href: '/admin/fraud', label: t('Risk indicators'), icon: <AlertTriangle className="h-4 w-4" />, perm: 'fraud.view' },
+    { href: '/admin/categories', label: t('Categories'), icon: <FolderTree className="h-4 w-4" />, perm: 'catalog.manage' },
+    { href: '/admin/countries', label: t('Countries'), icon: <Landmark className="h-4 w-4" />, perm: 'catalog.manage' },
+    { href: '/admin/team', label: t('Admin team'), icon: <UserCog className="h-4 w-4" />, perm: 'dashboard.view' },
+    { href: '/admin/audit', label: t('Audit log'), icon: <ScrollText className="h-4 w-4" />, perm: 'audit.view' },
   ];
+  const items: NavItem[] = all.filter((i) => perms.includes(i.perm));
   return (
     <RequireAuth admin>
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:flex lg:gap-8">

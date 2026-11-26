@@ -78,6 +78,8 @@ export const NotificationType = {
   PLAN_LIMIT_REACHED: 'PLAN_LIMIT_REACHED',
   /** Subscription started, renewed, payment failed or ended. */
   SUBSCRIPTION_UPDATED: 'SUBSCRIPTION_UPDATED',
+  /** Support ticket replies and status changes (and admin team notices). */
+  SUPPORT_UPDATED: 'SUPPORT_UPDATED',
 } as const;
 export type NotificationType = (typeof NotificationType)[keyof typeof NotificationType];
 

@@ -179,6 +179,7 @@ function JobDetail() {
             <h3 className="text-sm font-semibold text-ink dark:text-white">{t('Need help?')}</h3>
             {can('cancel') && <Button variant="outline" className="w-full" onClick={() => setModal('cancel')}><X className="h-4 w-4" />{t('Cancel job')}</Button>}
             {can('open_dispute') && <Button variant="outline" className="w-full" onClick={() => setModal('dispute')}><Scale className="h-4 w-4" />{t('Report a problem / dispute')}</Button>}
+            <Button variant="ghost" className="w-full" href={`/help/new?kind=problem&jobId=${id}&subject=${encodeURIComponent(j.request.title)}`}>🛟 {t('Contact UNRET support')}</Button>
             {j.disputes.map((d: any) => <div key={d.id} className="rounded-lg bg-surface-sunk p-2.5 text-xs dark:bg-white/5"><StatusBadge status={d.status} /> {d.reason}{d.resolution && <div className="mt-1 text-ink-soft">{t('Resolution')}: {d.resolution}</div>}</div>)}
           </Card>
         </aside>

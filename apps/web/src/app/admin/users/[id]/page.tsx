@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
-import { Alert, Badge, Button, Card, Field, KeyValue, Modal, PageHeader, PageLoader, StatusBadge, Textarea } from '@/components/ui-exports';
+import { Alert, Badge, Button, Card, Field, Input, KeyValue, Modal, PageHeader, PageLoader, Select, StatusBadge, Textarea } from '@/components/ui-exports';
+import { useAuth } from '@/lib/auth';
 import { AdminShell } from '@/components/shell';
 import { api } from '@/lib/api';
 import { dateTime, money } from '@/lib/format';
@@ -17,11 +18,12 @@ export default function Page() {
 function UserDetail() {
   const { id } = useParams<{ id: string }>();
   const { t, intl } = useT();
-  const { data: u, loading, reload } = useApi<any>(`/admin/users/${id}`);
+  const { data: u, reload } = useApi<any>(`/admin/users/${id}`);
   const [suspending, setSuspending] = useState(false);
   const [reason, setReason] = useState('');
   const [err, setErr] = useState<string | null>(null);
-  if (loading || !u) return <PageLoader />;
+  // Keep the page on screen while it refreshes, so confirmations (e.g. "reset link sent") stay visible.
+  if (!u) return <PageLoader />;
   const run = (fn: () => Promise<unknown>) => fn().then(reload).catch((e) => setErr(e.message));
   return (
     <>
@@ -40,6 +42,7 @@ function UserDetail() {
             <div className="mt-3 flex flex-wrap gap-1">{u.professional.verifications.map((v: any) => <Badge key={v.id} tone={v.status === 'APPROVED' ? 'green' : v.status === 'REJECTED' ? 'red' : 'amber'}>{v.type} · {v.status}</Badge>)}</div>
           </Card>
         )}
+        <HelpTools u={u} onDone={reload} />
         <Card className="p-5">
           <h2 className="mb-3 font-semibold">{t('Recent requests and jobs')}</h2>
           <ul className="space-y-1.5 text-sm">
@@ -64,5 +67,68 @@ function UserDetail() {
         </div>
       </Modal>
     </>
+  );
+}
+
+/** Fixing a person's problem without asking engineers: sign-in help, messages, plan changes, reading a case's conversations. */
+function HelpTools({ u, onDone }: { u: any; onDone: () => void }) {
+  const { t, intl } = useT();
+  const { me } = useAuth();
+  const perms: string[] = (me as any)?.adminPermissions ?? [];
+  const can = (p: string) => perms.includes(p);
+  const [msg, setMsg] = useState<{ tone: 'green' | 'red'; text: string } | null>(null);
+  const [notify, setNotify] = useState<{ title: string; body: string } | null>(null);
+  const [plan, setPlan] = useState({ code: 'standard', days: '30' });
+  const [convs, setConvs] = useState<any[] | null>(null);
+  const [reading, setReading] = useState<any | null>(null);
+  const [reason, setReason] = useState('');
+  const run = (fn: () => Promise<any>, ok: string) => { setMsg(null); return fn().then(() => { setMsg({ tone: 'green', text: ok }); onDone(); }).catch((e) => setMsg({ tone: 'red', text: e.message })); };
+  if (!can('users.manage') && !can('payments.manage') && !can('conversations.read')) return null;
+  return (
+    <Card className="space-y-4 p-5 xl:col-span-2" data-testid="help-tools">
+      <h2 className="font-semibold">{t('Help this person')}</h2>
+      {msg && <Alert tone={msg.tone}>{msg.text}</Alert>}
+      {can('users.manage') && (
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" disabled={!u.email} onClick={() => run(() => api(`/admin/users/${u.id}/password-reset`, { method: 'POST' }), t('Password reset link sent to {email} (valid 24 hours).', { email: u.email }))}>🔑 {t('Send password reset link')}</Button>
+          {u.mfaEnabled && <Button size="sm" variant="outline" onClick={() => { if (confirm(t('Turn off two-factor login for this person? Do this only after confirming who they are.'))) run(() => api(`/admin/users/${u.id}/reset-mfa`, { method: 'POST' }), t('Two-factor login turned off.')); }}>🛡️ {t('Turn off two-factor login')}</Button>}
+          <Button size="sm" variant="outline" onClick={() => setNotify({ title: '', body: '' })}>✉️ {t('Send a message')}</Button>
+        </div>
+      )}
+      {notify && (
+        <div className="space-y-2 rounded-xl border border-surface-line p-3 dark:border-white/15">
+          <Field label={t('Title')}><Input value={notify.title} onChange={(e) => setNotify({ ...notify, title: e.target.value })} /></Field>
+          <Field label={t('Message')}><Textarea value={notify.body} onChange={(e) => setNotify({ ...notify, body: e.target.value })} /></Field>
+          <div className="flex gap-2"><Button size="sm" disabled={notify.title.length < 3 || notify.body.length < 3} onClick={() => run(() => api(`/admin/users/${u.id}/notify`, { body: notify }), t('Message sent (in the app, by push and email).')).then(() => setNotify(null))}>{t('Send')}</Button><Button size="sm" variant="ghost" onClick={() => setNotify(null)}>{t('Cancel')}</Button></div>
+        </div>
+      )}
+      {can('payments.manage') && u.professional && (
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="w-40"><Field label={t('Give a plan')}><Select value={plan.code} onChange={(e) => setPlan({ ...plan, code: e.target.value })}><option value="standard">Standard</option><option value="deluxe">Deluxe</option><option value="vip">VIP</option><option value="free">{t('Free (end paid plan now)')}</option></Select></Field></div>
+          {plan.code !== 'free' && <div className="w-28"><Field label={t('Days')}><Input type="number" min={1} max={365} value={plan.days} onChange={(e) => setPlan({ ...plan, days: e.target.value })} /></Field></div>}
+          <Button size="sm" variant="outline" onClick={() => run(() => api(`/admin/users/${u.id}/plan`, { body: { planCode: plan.code, days: Number(plan.days) || 30 } }), plan.code === 'free' ? t('Paid plan ended.') : t('Plan given for free; it ends by itself.'))}>{t('Apply')}</Button>
+        </div>
+      )}
+      {can('conversations.read') && (
+        <div>
+          {!convs ? <Button size="sm" variant="ghost" onClick={() => api<any[]>(`/admin/users/${u.id}/conversations`).then(setConvs).catch((e) => setMsg({ tone: 'red', text: e.message }))}>💬 {t('Conversations (for a case)')}</Button> : (
+            <div className="space-y-2">
+              <p className="text-xs text-ink-muted">{t('Conversations are private. Open one only when it is needed for a case; every read is recorded with your reason.')}</p>
+              <ul className="divide-y divide-surface-line text-sm dark:divide-white/10">{convs.map((c) => <li key={c.id} className="flex items-center justify-between gap-2 py-1.5"><span className="truncate">{c.customer} ↔ {c.professional}{c.request ? ` · ${c.request}` : ''} <span className="text-ink-muted">({c.messages})</span></span><Button size="sm" variant="ghost" onClick={() => setReading({ id: c.id })}>{t('Read')}</Button></li>)}</ul>
+            </div>
+          )}
+          <Modal open={!!reading} onClose={() => { setReading(null); setReason(''); }} title={t('Read conversation')} wide>
+            {reading && !reading.messages ? (
+              <div className="space-y-3">
+                <Field label={t('Why do you need to read it?')} required><Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder={t('e.g. Ticket #1001, dispute about payment')} /></Field>
+                <Button disabled={reason.trim().length < 3} onClick={() => api(`/admin/conversations/${reading.id}`, { query: { reason } }).then(setReading).catch((e) => setMsg({ tone: 'red', text: e.message }))}>{t('Open')}</Button>
+              </div>
+            ) : reading && (
+              <ul className="max-h-[60vh] space-y-2 overflow-y-auto text-sm">{reading.messages.map((m: any) => <li key={m.id}><span className="text-xs text-ink-muted">{dateTime(m.createdAt, intl)} · {m.sender?.name ?? 'UNRET'}</span><p className="whitespace-pre-wrap">{m.body}</p></li>)}</ul>
+            )}
+          </Modal>
+        </div>
+      )}
+    </Card>
   );
 }

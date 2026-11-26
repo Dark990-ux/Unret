@@ -424,6 +424,43 @@ export class JobsService {
     return { ok: true };
   }
 
+  /**
+   * An administrator steps in on a job that is stuck (e.g. the professional disappeared, or both agree it is done):
+   * cancel (money still held by UNRET is refunded) or complete (held money is paid out). Both people are told why.
+   */
+  async adminSetStatus(admin: AuthUser, jobId: string, to: 'CANCELLED' | 'COMPLETED', note: string) {
+    const job = await this.prisma.job.findUnique({ where: { id: jobId }, include: { professional: { select: { userId: true } }, request: { select: { title: true } } } });
+    if (!job) throw new NotFoundException('Job not found');
+    if (job.status === to) throw new BadRequestException(`The job is already ${to.toLowerCase()}`);
+    const allowed = to === 'CANCELLED' ? ['ACCEPTED', 'SCHEDULED', 'IN_PROGRESS', 'DISPUTED'] : ['IN_PROGRESS', 'SCHEDULED', 'ACCEPTED', 'DISPUTED'];
+    if (!allowed.includes(job.status)) throw new BadRequestException(`A ${job.status.toLowerCase()} job cannot be ${to === 'CANCELLED' ? 'cancelled' : 'completed'}`);
+    await this.prisma.$transaction(async (tx) => {
+      // Admins may complete an accepted/scheduled job directly (e.g. work done but nobody pressed "start").
+      const res = await tx.job.updateMany({
+        where: { id: jobId, status: job.status },
+        data: to === 'CANCELLED'
+          ? { status: 'CANCELLED', cancelledAt: new Date(), cancelledById: admin.id, cancellationReason: `UNRET support: ${note}` }
+          : { status: 'COMPLETED', completedAt: new Date(), customerConfirmedAt: job.customerConfirmedAt ?? new Date(), professionalConfirmedAt: job.professionalConfirmedAt ?? new Date() },
+      });
+      if (!res.count) throw new BadRequestException('The job changed meanwhile; reload and try again');
+      await tx.jobEvent.create({ data: { jobId, actorId: admin.id, fromStatus: job.status, toStatus: to, type: 'ADMIN_ACTION', note } });
+      if (to === 'CANCELLED') await this.availability.release(tx, jobId);
+      await tx.dispute.updateMany({ where: { jobId, status: { in: ['OPEN', 'UNDER_REVIEW'] } }, data: { status: 'RESOLVED', resolution: note, resolvedById: admin.id, resolvedAt: new Date() } });
+      await this.audit.log({ actorId: admin.id, action: `admin.job.${to === 'CANCELLED' ? 'cancel' : 'complete'}`, entityType: 'Job', entityId: jobId, metadata: { from: job.status, note } }, tx);
+    });
+    if (to === 'COMPLETED') await this.payouts.releaseForJob(jobId);
+    else { await this.payouts.refundHeldForJob(jobId, 'Cancelled by UNRET support'); void this.alerts.check(job.professionalId); }
+    await this.professionals.recomputeReputation(job.professionalId);
+    for (const uid of [job.customerId, job.professional.userId]) {
+      await this.notifications.notify({
+        userId: uid, type: to === 'CANCELLED' ? 'JOB_CANCELLED' : 'JOB_STATUS_CHANGED',
+        title: to === 'CANCELLED' ? 'Job cancelled by UNRET support' : 'Job marked as completed by UNRET support',
+        body: `"${job.request.title}": ${note}`, data: { jobId, url: `/jobs/${jobId}` },
+      });
+    }
+    return { ok: true };
+  }
+
   /** Company owner/manager assigns the job to a team member. */
   async assign(user: AuthUser, jobId: string, memberUserId: string) {
     const job = await this.prisma.job.findUnique({ where: { id: jobId } });

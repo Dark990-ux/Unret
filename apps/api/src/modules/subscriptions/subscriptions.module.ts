@@ -4,7 +4,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { IsBoolean, IsInt, IsObject, IsOptional, IsString, Length, Matches, MaxLength, Min } from 'class-validator';
 import { formatMoney } from '@unret/shared';
 import { AuditService } from '../../common/audit.service';
-import { AuthUser, CurrentUser, Roles } from '../../common/decorators';
+import { AuthUser, CurrentUser, Permission } from '../../common/decorators';
 import { requirePro } from '../../common/guards';
 import { PrismaService } from '../../common/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -285,19 +285,19 @@ export class SubscriptionsController {
     return this.s.resume(user);
   }
 
-  @Roles('ADMIN')
+  @Permission('plans.manage')
   @Get('admin/plans')
   adminPlans() {
     return this.s.adminPlans();
   }
 
-  @Roles('ADMIN')
+  @Permission('plans.manage')
   @Post('admin/plans')
   createPlan(@CurrentUser() user: AuthUser, @Body() dto: PlanDto) {
     return this.s.upsertPlan(user, null, dto);
   }
 
-  @Roles('ADMIN')
+  @Permission('plans.manage')
   @Put('admin/plans/:id')
   updatePlan(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: PlanDto) {
     return this.s.upsertPlan(user, id, dto);

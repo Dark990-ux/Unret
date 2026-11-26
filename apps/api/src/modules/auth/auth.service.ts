@@ -1,7 +1,9 @@
+import { ADMIN_ROLE_PERMISSIONS } from '@unret/shared';
 import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
+import { EmailChannel } from '../notifications/channels';
 import { createHash, randomBytes } from 'crypto';
 import { authenticator } from 'otplib';
 import { AuditService } from '../../common/audit.service';
@@ -19,6 +21,7 @@ export class AuthService {
     private jwt: JwtService,
     private config: ConfigService,
     private audit: AuditService,
+    private email: EmailChannel,
   ) {}
 
   async register(dto: RegisterDto, ip?: string) {
@@ -85,17 +88,68 @@ export class AuthService {
     return { ok: true };
   }
 
+  // ── Forgot password ──
+
+  private webBase() {
+    return (process.env.PUBLIC_WEB_URL || (process.env.WEB_ORIGIN ?? 'http://localhost:3000').split(',')[0]).trim().replace(/\/$/, '');
+  }
+
+  /** Creates a one-time link (only its hash is stored) and emails it. Used by "Forgot password?" and by administrators. */
+  async sendPasswordReset(userId: string, opts: { byAdminId?: string; hours?: number } = {}) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, email: true, name: true, status: true, preferredLanguage: true } });
+    if (!user?.email || user.status !== 'ACTIVE') return { sent: false };
+    const token = randomBytes(32).toString('base64url');
+    const hours = opts.hours ?? 1;
+    await this.prisma.passwordResetToken.create({ data: { userId, tokenHash: createHash('sha256').update(token).digest('hex'), expiresAt: new Date(Date.now() + hours * 3600e3), createdById: opts.byAdminId ?? null } });
+    const ro = user.preferredLanguage === 'ro';
+    await this.email.send({
+      to: user.email, locale: user.preferredLanguage,
+      subject: ro ? 'Setează o parolă nouă pentru UNRET' : 'Set a new UNRET password',
+      body: ro
+        ? `Salut ${user.name},\n\nAm primit o cerere de resetare a parolei${opts.byAdminId ? ' de la echipa UNRET' : ''}. Linkul este valabil ${hours === 1 ? 'o oră' : `${hours} ore`} și poate fi folosit o singură dată. Dacă nu ai cerut tu, ignoră acest email.`
+        : `Hi ${user.name},\n\nWe received a request to reset your password${opts.byAdminId ? ' from the UNRET team' : ''}. The link works for ${hours === 1 ? 'one hour' : `${hours} hours`} and can be used once. If you did not ask for this, you can ignore this email.`,
+      actionUrl: `${this.webBase()}/reset-password?token=${token}`,
+    }).catch(() => undefined);
+    await this.audit.log({ actorId: opts.byAdminId ?? userId, action: opts.byAdminId ? 'admin.user.password_reset_link' : 'auth.password.forgot', entityType: 'User', entityId: userId });
+    return { sent: true, to: user.email };
+  }
+
+  /** Always answers the same way, so nobody can find out which emails have an account. */
+  async forgotPassword(email: string) {
+    const user = await this.prisma.user.findFirst({ where: { email: { equals: email.trim(), mode: 'insensitive' } }, select: { id: true } });
+    if (user) {
+      const recent = await this.prisma.passwordResetToken.count({ where: { userId: user.id, createdAt: { gt: new Date(Date.now() - 15 * 60e3) } } });
+      if (recent < 3) await this.sendPasswordReset(user.id);
+    }
+    return { ok: true };
+  }
+
+  async resetPassword(token: string, password: string) {
+    const row = await this.prisma.passwordResetToken.findUnique({ where: { tokenHash: createHash('sha256').update(token).digest('hex') } });
+    if (!row || row.usedAt || row.expiresAt < new Date()) throw new BadRequestException('This link is no longer valid. Ask for a new one.');
+    await this.prisma.$transaction([
+      this.prisma.user.update({ where: { id: row.userId }, data: { passwordHash: await bcrypt.hash(password, 12) } }),
+      this.prisma.passwordResetToken.update({ where: { id: row.id }, data: { usedAt: new Date() } }),
+      // Sign out everywhere: whoever had the old password loses access.
+      this.prisma.refreshToken.updateMany({ where: { userId: row.userId, revokedAt: null }, data: { revokedAt: new Date() } }),
+    ]);
+    await this.audit.log({ actorId: row.userId, action: 'auth.password.reset', entityType: 'User', entityId: row.userId });
+    return { ok: true };
+  }
+
   async me(userId: string) {
     const u = await this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
       select: {
-        id: true, name: true, email: true, phone: true, role: true, countryCode: true, preferredLanguage: true,
+        id: true, name: true, email: true, phone: true, role: true, adminRole: true, countryCode: true, preferredLanguage: true,
         avatarKey: true, city: true, addressText: true, mfaEnabled: true, createdAt: true,
         country: { select: { currency: true, defaultTimezone: true } },
         professional: { select: { id: true, visibility: true, businessName: true, accountType: true, companyId: true } },
       },
     });
-    return u;
+    // Administrators: their role and what it allows (the website shows only the admin pages they can use).
+    const adminRole = u.role === 'ADMIN' ? u.adminRole ?? 'OWNER' : null;
+    return { ...u, adminRole, adminPermissions: adminRole ? ADMIN_ROLE_PERMISSIONS[adminRole] : [] };
   }
 
   async mfaSetup(userId: string) {

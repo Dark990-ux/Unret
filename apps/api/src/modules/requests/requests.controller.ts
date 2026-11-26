@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { AuthUser, CurrentUser, Roles } from '../../common/decorators';
+import { AuthUser, CurrentUser, Permission, Roles } from '../../common/decorators';
 import { requirePro } from '../../common/guards';
 import { CreateRequestDto, InboxQuery, ListRequestsQuery, UpdateRequestDto } from './requests.dto';
 import { RequestsService } from './requests.service';
@@ -61,7 +61,7 @@ export class RequestsController {
     return this.requests.decline(user, id);
   }
 
-  @Roles('ADMIN')
+  @Permission('jobs.manage', 'users.view')
   @Get(':id/matches')
   matches(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.requests.matchExplanation(user, id);

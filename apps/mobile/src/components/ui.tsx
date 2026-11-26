@@ -155,6 +155,7 @@ const STATUS: Record<string, [string, Tone]> = {
   CANCELLED: ['Cancelled', 'gray'], EXPIRED: ['Expired', 'gray'], PENDING: ['Pending', 'amber'], MODIFICATION_REQUESTED: ['Changes requested', 'amber'],
   ACCEPTED: ['Accepted', 'green'], REJECTED: ['Rejected', 'red'], WITHDRAWN: ['Withdrawn', 'gray'], SCHEDULED: ['Scheduled', 'blue'],
   IN_PROGRESS: ['In progress', 'violet'], COMPLETED: ['Completed', 'green'], DISPUTED: ['Disputed', 'red'], HIDDEN: ['Hidden', 'gray'],
+  OPEN: ['Open', 'amber'], RESOLVED: ['Resolved', 'green'], WAITING_USER: ['Waiting for your reply', 'blue'], CLOSED: ['Closed', 'gray'],
   LIMITED: ['Limited', 'amber'], PUBLIC: ['Public', 'green'], APPROVED: ['Approved', 'green'], RECORDED: ['Recorded', 'gray'], SUCCEEDED: ['Paid', 'green'], PROPOSED: ['Awaiting approval', 'amber'],
   AWAITING_CONFIRMATION: ['Waiting for confirmation', 'blue'], CONFIRMED: ['Confirmed', 'green'],
 };

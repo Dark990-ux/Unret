@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { IsDateString, IsEnum, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
 import { VerificationType } from '@prisma/client';
 import { AuditService } from '../../common/audit.service';
-import { AuthUser, CurrentUser, Roles } from '../../common/decorators';
+import { AuthUser, CurrentUser, Permission, Roles } from '../../common/decorators';
 import { requirePro } from '../../common/guards';
 import { PageQuery, pageResult, paginate } from '../../common/pagination';
 import { PrismaService } from '../../common/prisma.service';
@@ -116,19 +116,19 @@ export class VerificationsController {
     return this.v.mine(user);
   }
 
-  @Roles('ADMIN')
+  @Permission('verifications.manage')
   @Get('queue')
   queue(@Query() q: PageQuery, @Query('status') status?: string) {
     return this.v.queue({ ...q, status });
   }
 
-  @Roles('ADMIN')
+  @Permission('verifications.manage')
   @Get(':id/document')
   document(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.v.documentUrl(user, id);
   }
 
-  @Roles('ADMIN')
+  @Permission('verifications.manage')
   @Post(':id/decision')
   decide(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: DecisionDto) {
     return this.v.decide(user, id, dto);

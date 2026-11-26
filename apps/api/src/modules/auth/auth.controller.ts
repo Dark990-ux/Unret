@@ -2,7 +2,7 @@ import { Body, Controller, Get, Headers, HttpCode, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { AuthUser, ClientIp, CurrentUser, Public } from '../../common/decorators';
-import { ChangePasswordDto, LoginDto, MfaCodeDto, RefreshDto, RegisterDto } from './auth.dto';
+import { ChangePasswordDto, ForgotPasswordDto, ResetPasswordDto, LoginDto, MfaCodeDto, RefreshDto, RegisterDto } from './auth.dto';
 import { AuthService } from './auth.service';
 
 @ApiTags('auth')
@@ -56,6 +56,21 @@ export class AuthController {
   @Post('mfa/enable')
   mfaEnable(@CurrentUser() user: AuthUser, @Body() dto: MfaCodeDto) {
     return this.auth.mfaEnable(user.id, dto.code);
+  }
+
+  /** "Forgot password?": emails a one-time link (same answer whether or not the email has an account). */
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('password/forgot')
+  forgot(@Body() dto: ForgotPasswordDto) {
+    return this.auth.forgotPassword(dto.email);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Post('password/reset')
+  reset(@Body() dto: ResetPasswordDto) {
+    return this.auth.resetPassword(dto.token, dto.password);
   }
 
   @ApiBearerAuth()
