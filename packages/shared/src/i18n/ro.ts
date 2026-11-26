@@ -1319,4 +1319,5 @@ export const ro: Record<string, string> = {
   "Why do you need to read it?": "De ce trebuie să o citești?",
   "e.g. Ticket #1001, dispute about payment": "ex. Tichet #1001, dispută despre plată",
   "Your administrator role does not allow this action": "Rolul tău de administrator nu permite această acțiune",
+  'Glad it is solved! If anything is still not right, just reply and the conversation opens again.': 'Ne bucurăm că s-a rezolvat! Dacă ceva tot nu e în regulă, răspunde aici și conversația se redeschide.',
 };

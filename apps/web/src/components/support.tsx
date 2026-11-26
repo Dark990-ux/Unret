@@ -54,7 +54,7 @@ export function TicketThread({ t: tk, staffView }: { t: any; staffView?: boolean
   const { t, intl } = useT();
   return (
     <div className="space-y-3" aria-live="polite">
-      {tk.messages.map((m: any) => {
+      {(tk.messages ?? []).map((m: any) => {
         const mineSide = staffView ? m.fromStaff : !m.fromStaff;
         return (
           <div key={m.id} className={cx('flex', mineSide ? 'justify-end' : 'justify-start')} data-testid={m.internal ? 'internal-note' : 'ticket-message'}>

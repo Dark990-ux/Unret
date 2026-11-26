@@ -26,12 +26,12 @@ function Ticket() {
   if (loading || !tk) return <PageLoader />;
   const send = async () => {
     setBusy(true); setErr(null);
-    try { setData(await api(`/support/tickets/${id}/messages`, { body: { body, attachmentKeys: files.map((x) => x.key) } })); setBody(''); setFiles([]); } catch (x) { setErr((x as Error).message); } finally { setBusy(false); }
+    try { const x: any = await api(`/support/tickets/${id}/messages`, { body: { body, attachmentKeys: files.map((f) => f.key) } }); if (x && Array.isArray(x.messages)) setData(x); else reload(); setBody(''); setFiles([]); } catch (x) { setErr((x as Error).message); } finally { setBusy(false); }
   };
   return (
     <Container className="max-w-3xl">
       <PageHeader title={tk.subject} back={{ href: '/help', label: t('Help & support') }} subtitle={<span className="flex items-center gap-2">{ticketRef(tk.number)} <StatusBadge status={tk.status} /></span>}
-        actions={!['RESOLVED', 'CLOSED'].includes(tk.status) && <Button variant="outline" onClick={async () => setData(await api(`/support/tickets/${id}/solved`, { method: 'POST' }))}>{t('My problem is solved')}</Button>} />
+        actions={!['RESOLVED', 'CLOSED'].includes(tk.status) && <Button variant="outline" onClick={() => api<any>(`/support/tickets/${id}/solved`, { method: 'POST' }).then((x) => (x && Array.isArray(x.messages) ? setData(x) : reload())).catch((x) => setErr((x as Error).message))}>{t('My problem is solved')}</Button>} />
       <Card className="space-y-5 p-5">
         <TicketThread t={tk} />
         {tk.status === 'WAITING_USER' && <Alert tone="blue">{t('UNRET Support replied. Answer below if you need anything else.')}</Alert>}

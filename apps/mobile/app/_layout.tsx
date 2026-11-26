@@ -78,3 +78,24 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 }
+
+/**
+ * Safety net for the whole app: if a screen crashes, show a friendly message with
+ * "Try again" / "Go home" instead of a black screen. Runs outside the providers,
+ * so it uses plain styles and both languages.
+ */
+export function ErrorBoundary({ error, retry }: { error: Error; retry: () => Promise<void> }) {
+  if (__DEV__) console.error(error);
+  const btn = { backgroundColor: '#2f33d6', paddingVertical: 12, paddingHorizontal: 22, borderRadius: 12, marginTop: 12, minWidth: 200, alignItems: 'center' as const };
+  return (
+    <SafeAreaProvider>
+      <Pressable accessible={false} style={{ flex: 1, backgroundColor: '#f6f5fb', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <Text style={{ fontSize: 40 }}>🛠️</Text>
+        <Text style={{ fontSize: 20, fontWeight: '700', color: '#16163a', marginTop: 10, textAlign: 'center' }}>Something went wrong</Text>
+        <Text style={{ fontSize: 15, color: '#5d5d7a', marginTop: 4, textAlign: 'center' }}>Ceva nu a mers bine</Text>
+        <Pressable style={btn} onPress={() => retry()} accessibilityRole="button"><Text style={{ color: '#fff', fontWeight: '700' }}>Try again · Încearcă din nou</Text></Pressable>
+        <Pressable style={{ ...btn, backgroundColor: 'transparent', borderWidth: 1, borderColor: '#2f33d6' }} onPress={() => { try { router.replace('/'); } catch { /* ignore */ } retry(); }} accessibilityRole="button"><Text style={{ color: '#2f33d6', fontWeight: '700' }}>Home · Acasă</Text></Pressable>
+      </Pressable>
+    </SafeAreaProvider>
+  );
+}
