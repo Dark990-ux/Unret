@@ -29,7 +29,7 @@ function Inbox() {
   const tabLabel = ['Open', 'Mine', 'Not assigned', 'Urgent', 'Waiting for the person', 'All'];
   return (
     <>
-      <PageHeader title={t('Support tickets')} subtitle={t('Messages and problem reports from customers, professionals and visitors.')} />
+      <PageHeader title={t('Support tickets')} subtitle={t('Messages and problem reports from customers, professionals and visitors.')} actions={<Link href="/admin/support/register" className="text-sm font-medium text-brand-700 hover:underline dark:text-brand-300">🗂️ {t('Problem register')} →</Link>} />
       <div className="mb-4 flex flex-wrap gap-2">
         {tabs.map(([s, p, a, n], i) => {
           const on = status === s && priority === p && assignee === a;

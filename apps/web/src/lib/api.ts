@@ -103,3 +103,16 @@ export async function logout() {
   if (s) await fetch(`${BASE}/auth/logout`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ refreshToken: s.refreshToken }) }).catch(() => undefined);
   saveSession(null);
 }
+
+/** Downloads a file from the API (e.g. a CSV export) with the signed-in session, and saves it under `filename`. */
+export async function download(path: string, filename: string, query: Record<string, unknown> = {}) {
+  const qs = '?' + new URLSearchParams(Object.entries(query).filter(([, v]) => v !== undefined && v !== null && v !== '').map(([k, v]) => [k, String(v)])).toString();
+  const get = () => fetch(`${BASE}${path}${qs}`, { headers: getAccessToken() ? { authorization: `Bearer ${getAccessToken()}` } : {} });
+  let res = await get();
+  if (res.status === 401 && (await refresh())) res = await get();
+  if (!res.ok) throw new ApiError(res.status, (await res.json().catch(() => null))?.message ?? 'Download failed');
+  const url = URL.createObjectURL(await res.blob());
+  const a = Object.assign(document.createElement('a'), { href: url, download: filename });
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}

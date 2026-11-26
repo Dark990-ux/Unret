@@ -6,6 +6,7 @@ import { AvailabilityAlertsService } from '../availability/alerts.service';
 import { JobsService } from '../jobs/jobs.service';
 import { MatchingService } from '../matching/matching.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { SupportService } from '../support/support.module';
 
 /**
  * Periodic background work. In a multi-instance deployment run these on a single
@@ -16,7 +17,15 @@ export class SchedulerService {
   private log = new Logger(SchedulerService.name);
   private enabled = process.env.SCHEDULER_ENABLED !== 'false' && process.env.NODE_ENV !== 'test';
 
-  constructor(private prisma: PrismaService, private matching: MatchingService, private jobs: JobsService, private notifications: NotificationsService, private alerts: AvailabilityAlertsService) {}
+  constructor(private prisma: PrismaService, private matching: MatchingService, private jobs: JobsService, private notifications: NotificationsService, private alerts: AvailabilityAlertsService, private support: SupportService) {}
+
+  /** Support: solved problems with no new message for 14 days are closed (they stay in the register). */
+  @Cron(CronExpression.EVERY_DAY_AT_3AM)
+  async closeSolvedTickets() {
+    if (!this.enabled) return;
+    const n = await this.support.autoClose();
+    if (n) this.log.log(`Closed ${n} solved support tickets`);
+  }
 
   /** "Notify me when free": time passing can free a professional (e.g. a fully booked week is over). */
   @Cron(CronExpression.EVERY_HOUR)

@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import {
   Bell, Briefcase, Calendar, ChevronDown, ClipboardList, Globe, Inbox, LayoutDashboard, LogOut, Menu, MessageSquare,
-  Search, Settings, Shield, ShieldCheck, Star, User, Users, Wallet, X, Heart, BarChart3, FolderTree, Flag, Scale, CreditCard, ScrollText, Landmark, Layers, AlertTriangle, Building2, Plus, LifeBuoy, UserCog,
+  Search, Settings, Shield, ShieldCheck, Star, User, Users, Wallet, X, Heart, BarChart3, FolderTree, Flag, Scale, CreditCard, ScrollText, Landmark, Layers, AlertTriangle, Building2, Plus, Archive, LifeBuoy, UserCog,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useT, LOCALES } from '@/lib/i18n';
@@ -215,12 +215,14 @@ type NavItem = { href: string; label: string; icon: React.ReactNode };
 
 function SideNav({ items, title }: { items: NavItem[]; title: string }) {
   const pathname = usePathname();
+  // The most specific item wins (e.g. /admin/support/register lights up "Problem register", not "Support").
+  const best = items.map((i) => i.href).filter((h) => pathname === h || (h !== '/admin' && h !== '/pro' && pathname.startsWith(h + '/'))).sort((a, b) => b.length - a.length)[0];
   return (
     <aside className="mb-6 lg:mb-0 lg:w-56 lg:shrink-0">
       <div className="mb-2 hidden px-3 text-xs font-semibold uppercase tracking-wider text-ink-muted lg:block">{title}</div>
       <nav className="-mx-4 flex gap-1 overflow-x-auto px-4 lg:mx-0 lg:flex-col lg:px-0">
         {items.map((i) => {
-          const active = pathname === i.href || (i.href !== '/admin' && i.href !== '/pro' && pathname.startsWith(i.href));
+          const active = i.href === best;
           return (
             <Link key={i.href} href={i.href} className={cx('flex shrink-0 items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium', active ? 'bg-brand-50 text-brand-800 dark:bg-brand-900/40 dark:text-brand-100' : 'text-ink-soft hover:bg-surface-sunk hover:text-ink dark:text-white/70 dark:hover:bg-white/5')}>
               {i.icon}{i.label}
@@ -264,9 +266,10 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const { me } = useAuth();
   const perms: string[] = (me as any)?.adminPermissions ?? [];
   // Each administrator sees only what their role allows (the server enforces the same rules).
-  const all: (NavItem & { perm: string })[] = [
+  const all: (NavItem & { perm: string | string[] })[] = [
     { href: '/admin', label: t('Overview'), icon: <LayoutDashboard className="h-4 w-4" />, perm: 'dashboard.view' },
     { href: '/admin/support', label: t('Support'), icon: <LifeBuoy className="h-4 w-4" />, perm: 'tickets.manage' },
+    { href: '/admin/support/register', label: t('Problem register'), icon: <Archive className="h-4 w-4" />, perm: ['tickets.manage', 'audit.view'] },
     { href: '/admin/users', label: t('Users'), icon: <Users className="h-4 w-4" />, perm: 'users.view' },
     { href: '/admin/jobs', label: t('Jobs'), icon: <Briefcase className="h-4 w-4" />, perm: 'jobs.manage' },
     { href: '/admin/disputes', label: t('Disputes'), icon: <Scale className="h-4 w-4" />, perm: 'disputes.manage' },
@@ -282,7 +285,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     { href: '/admin/team', label: t('Admin team'), icon: <UserCog className="h-4 w-4" />, perm: 'dashboard.view' },
     { href: '/admin/audit', label: t('Audit log'), icon: <ScrollText className="h-4 w-4" />, perm: 'audit.view' },
   ];
-  const items: NavItem[] = all.filter((i) => perms.includes(i.perm));
+  const items: NavItem[] = all.filter((i) => [i.perm].flat().some((p) => perms.includes(p)));
   return (
     <RequireAuth admin>
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:flex lg:gap-8">

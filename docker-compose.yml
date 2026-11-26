@@ -19,6 +19,24 @@ services:
   redis:
     image: redis:7
 
+  # Daily database backup (support records, conversations, jobs, payments…) into ./backups, kept 30 days.
+  # Copy ./backups to another place too (another server or cloud storage): a backup on the same disk is not enough.
+  db-backup:
+    image: postgres:16
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      PGHOST: postgres
+      PGUSER: unret
+      PGPASSWORD: unret
+      PGDATABASE: unret
+      BACKUP_KEEP_DAYS: "30"
+    volumes:
+      - ./backups:/backups
+      - ./scripts/backup-db.sh:/backup-db.sh:ro
+    entrypoint: ["/bin/sh", "/backup-db.sh"]
+    restart: unless-stopped
+
   api:
     build: { context: ., target: api }
     depends_on:
