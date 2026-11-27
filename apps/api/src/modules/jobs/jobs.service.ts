@@ -54,8 +54,39 @@ export function paymentState(method: string, payments: Pay[], totalMinor = 0, de
   return paymentSummary(method, payments, totalMinor, depositMinor).state;
 }
 
+/**
+ * After a job's time is over, who still has to do something about the payment:
+ * - customer "pay": paying through UNRET (card in the app)
+ * - customer "mark_paid": card / bank transfer or cash, tell the professional the money was sent
+ * - professional "confirm": card / bank transfer or cash, confirm the money arrived
+ * Null when the payment is complete (or a card payment is still processing).
+ */
+export type PaymentGap = { customer?: 'pay' | 'mark_paid'; professional?: 'confirm' };
+export function paymentGap(method: string, s: PaymentSummary): PaymentGap | null {
+  if (s.remainingMinor <= 0 && !s.awaiting) return null;
+  if (s.processing) return null;
+  if (method === 'PLATFORM') return { customer: 'pay' };
+  if (s.awaiting) return { professional: 'confirm' };
+  return { customer: 'mark_paid', professional: 'confirm' };
+}
+
+/** When the work was supposed to be over: marked complete, or the end of the scheduled time (start + 4 h if no end was set). */
+export const JOB_DEFAULT_DURATION_HOURS = 4;
+export function jobEndsAt(j: { completedAt: Date | null; scheduledStartAt: Date | null; scheduledEndAt: Date | null }): Date | null {
+  const planned = j.scheduledEndAt ?? (j.scheduledStartAt ? new Date(j.scheduledStartAt.getTime() + JOB_DEFAULT_DURATION_HOURS * 3600e3) : null);
+  if (j.completedAt && planned) return j.completedAt < planned ? j.completedAt : planned;
+  return j.completedAt ?? planned;
+}
+
+/** A payment follow-up that is still open (reminders sent, not settled yet). */
+export const OPEN_PAYMENT_CHECK = { paymentCheckStage: { gte: 1 }, paymentCheckResolvedAt: null } satisfies Prisma.JobWhereInput;
+
 /** Days after the professional marks a job complete before it auto-completes without customer response. */
 export const AUTO_COMPLETE_DAYS = 7;
+/** Hours between payment reminders, and before the UNRET team is asked to check. */
+export const PAYMENT_REMINDER_INTERVAL_HOURS = Number(process.env.PAYMENT_REMINDER_INTERVAL_HOURS ?? 24);
+/** Hours after the job's time is over before the first payment reminder. */
+export const PAYMENT_REMINDER_GRACE_HOURS = Number(process.env.PAYMENT_REMINDER_GRACE_HOURS ?? 1);
 
 @Injectable()
 export class JobsService {
@@ -99,7 +130,8 @@ export class JobsService {
 
     const filters: Record<string, Prisma.JobWhereInput> = {
       upcoming: { status: { in: ['ACCEPTED', 'SCHEDULED'] } },
-      active: { status: { in: ['ACCEPTED', 'SCHEDULED', 'IN_PROGRESS'] } },
+      // Finished jobs whose payment is still not confirmed stay in the active list until it is.
+      active: { OR: [{ status: { in: ['ACCEPTED', 'SCHEDULED', 'IN_PROGRESS'] } }, { status: 'COMPLETED', ...OPEN_PAYMENT_CHECK }] },
       completed: { status: 'COMPLETED' },
       cancelled: { status: 'CANCELLED' },
       disputed: { status: 'DISPUTED' },
@@ -131,10 +163,33 @@ export class JobsService {
         customerName: j.customer.name, professionalName: j.professional.businessName ?? j.professional.user.name, professionalId: j.professional.id,
         reviewed: !!j.review, pendingChanges: j.changes.length,
         paymentMethod: j.paymentMethod, paymentState: paymentState(j.paymentMethod, j.payments, j.agreedPriceMinor, j.depositMinor),
+        // The job is over, reminders started and this person still has to pay / confirm.
+        paymentActionForMe: (() => {
+          if (j.paymentCheckStage < 1 || j.paymentCheckResolvedAt) return null;
+          const gap = paymentGap(j.paymentMethod, paymentSummary(j.paymentMethod, j.payments, j.agreedPriceMinor, j.depositMinor));
+          return (as === 'customer' ? gap?.customer : gap?.professional) ?? null;
+        })(),
         awaitingMyConfirmation: j.status === 'IN_PROGRESS' && (as === 'customer' ? !!j.professionalConfirmedAt && !j.customerConfirmedAt : !j.professionalConfirmedAt),
       })),
       total, q,
     );
+  }
+
+  /** What the payment follow-up looks like for this viewer (shown on the job page). */
+  private paymentCheckView(j: { status: string; paymentMethod: string; paymentCheckStage: number; paymentReminder1At: Date | null; paymentReminder2At: Date | null; paymentEscalatedAt: Date | null; paymentCheckResolvedAt: Date | null; completedAt: Date | null; scheduledStartAt: Date | null; scheduledEndAt: Date | null }, summary: PaymentSummary, role: string) {
+    if (['CANCELLED', 'DISPUTED'].includes(j.status)) return null;
+    const endsAt = jobEndsAt(j);
+    const gap = paymentGap(j.paymentMethod, summary);
+    if (!gap || !endsAt || endsAt > new Date() || j.paymentCheckResolvedAt) return null;
+    const hours = PAYMENT_REMINDER_INTERVAL_HOURS * 3600e3;
+    const next = j.paymentCheckStage === 1 && j.paymentReminder1At ? new Date(j.paymentReminder1At.getTime() + hours) : j.paymentCheckStage === 2 && j.paymentReminder2At ? new Date(j.paymentReminder2At.getTime() + hours) : null;
+    return {
+      stage: j.paymentCheckStage, endsAt, reminder1At: j.paymentReminder1At, reminder2At: j.paymentReminder2At, escalatedAt: j.paymentEscalatedAt,
+      waitingFor: gap, mine: role === 'customer' ? gap.customer ?? null : role === 'professional' ? gap.professional ?? null : null,
+      // When the UNRET team will be asked to check, if nothing happens.
+      teamCheckAt: j.paymentCheckStage === 2 ? next : j.paymentCheckStage === 1 && next ? new Date(next.getTime() + hours) : null,
+      nextReminderAt: j.paymentCheckStage === 1 ? next : null,
+    };
   }
 
   async detail(user: AuthUser, jobId: string) {
@@ -173,6 +228,7 @@ export class JobsService {
       company: role === 'professional' ? j.company : j.company ? { id: j.company.id, displayName: j.company.displayName } : null,
       paymentState: summary.state,
       payment: summary,
+      paymentCheck: this.paymentCheckView(j, summary, role),
       paymentProvider: process.env.PAYMENT_PROVIDER || 'mock',
       payTo: role === 'customer' && ['TRANSFER', 'DIRECT'].includes(j.paymentMethod) && summary.remainingMinor > 0 ? await this.payTo(j.professionalId) : null,
       allowedActions: this.allowedActions({ ...j, summary }, role, user.id),

@@ -7,6 +7,7 @@ import { JobsService } from '../jobs/jobs.service';
 import { MatchingService } from '../matching/matching.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SupportService } from '../support/support.module';
+import { PaymentChecksService } from '../payments/payment-checks.service';
 
 /**
  * Periodic background work. In a multi-instance deployment run these on a single
@@ -17,7 +18,14 @@ export class SchedulerService {
   private log = new Logger(SchedulerService.name);
   private enabled = process.env.SCHEDULER_ENABLED !== 'false' && process.env.NODE_ENV !== 'test';
 
-  constructor(private prisma: PrismaService, private matching: MatchingService, private jobs: JobsService, private notifications: NotificationsService, private alerts: AvailabilityAlertsService, private support: SupportService) {}
+  constructor(private prisma: PrismaService, private matching: MatchingService, private jobs: JobsService, private notifications: NotificationsService, private alerts: AvailabilityAlertsService, private support: SupportService, private paymentChecks: PaymentChecksService) {}
+
+  /** Payment follow-up: reminders after the job's time is over, then the UNRET team checks. */
+  @Cron(CronExpression.EVERY_HOUR)
+  async paymentFollowUp() {
+    if (!this.enabled) return;
+    await this.paymentChecks.sweep();
+  }
 
   /** Support: solved problems with no new message for 14 days are closed (they stay in the register). */
   @Cron(CronExpression.EVERY_DAY_AT_3AM)

@@ -2,7 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Linking, View } from 'react-native';
 import { DateTimeField } from '@/components/domain';
-import { PaymentPanel } from '@/components/payment';
+import { PaymentFollowUp, PaymentPanel } from '@/components/payment';
 import { useTheme } from '@/components/theme';
 import { Alert, Avatar, Badge, Button, Card, Divider, Empty, Field, Input, KV, Loader, Row, Screen, Section, Segmented, Sheet, StarInput, StatusBadge, Text } from '@/components/ui';
 import { absUrl, api } from '@/lib/api';
@@ -19,7 +19,7 @@ const EVENT_NAMES: Record<string, string> = {
   DISPUTE_OPENED: 'Dispute opened', DISPUTE_RESOLVED: 'Dispute resolved', AUTO_COMPLETED: 'Completed automatically',
   PAYMENT_SUCCEEDED: 'Paid through UNRET (held until the job is done)', PAYMENT_MARKED_PAID: 'Customer says the payment was sent',
   PAYMENT_CONFIRMED: 'Professional confirmed receiving the payment', PAYOUT_SENT: 'Payment sent to the professional',
-  PAYMENT_REFUNDED: 'Payment refunded to the customer', PAYMENT_METHOD_CHANGED: 'Payment method changed', PAYMENT_RECORDED: 'Payment recorded',
+  PAYMENT_REFUNDED: 'Payment refunded to the customer', PAYMENT_METHOD_CHANGED: 'Payment method changed', PAYMENT_REMINDER: 'Payment reminder sent', PAYMENT_ESCALATED: 'Sent to the UNRET team to check the payment', PAYMENT_FOLLOW_UP_CLOSED: 'Payment complete — reminders stopped', PAYMENT_RECORDED: 'Payment recorded',
 };
 type SheetKind = null | 'change' | 'cancel' | 'dispute' | 'review' | 'payment';
 
@@ -107,6 +107,7 @@ export default function JobDetail() {
       </Section>
 
       <Section title={t('Payment')}>
+        <PaymentFollowUp job={j} />
         <PaymentPanel job={j} onUpdated={setData} />
       </Section>
 

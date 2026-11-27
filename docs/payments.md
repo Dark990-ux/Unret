@@ -101,3 +101,27 @@ Professionals pay a monthly plan. Customers never pay a subscription. **All plan
 - **VAT:** plan prices are created at Stripe as VAT-inclusive (`tax_behavior: inclusive`), so a professional pays exactly the advertised price. To show the VAT on Stripe invoices, set up **Stripe Tax** (Dashboard → Tax: add your Romanian VAT registration), then set `STRIPE_AUTOMATIC_TAX=true`. Stripe then asks for the billing address and lets businesses enter their VAT ID.
 - **Without Stripe (`PAYMENT_PROVIDER=mock`):** plans start immediately, for testing.
 - **Changing prices or limits:** admins edit plans in **Admin → Subscription plans** (`requestsPerDay`, `visibility`, `badge`). A price change creates a new Stripe price for new subscribers.
+
+## Payment follow-up after a job ends
+
+When a job's time is over (its scheduled end, start + 4 h if no end was set, or when it was marked complete) and the
+payment is not complete, UNRET follows up automatically (`PaymentChecksService`, every hour):
+
+| When | What happens |
+|---|---|
+| Job time over + 1 h | **Reminder 1** to whoever still has to act |
+| + 24 h | **Reminder 2** ("last reminder") |
+| + 24 h more | A **form is sent to the UNRET team**: an automatic support ticket (High priority, category Payments) with the job, both people's contact details, method, amounts, whether the customer said they paid, and when the reminders were sent. Both people are told the team will check. |
+
+Who is reminded:
+
+- **Through UNRET** — the customer (pay in the app).
+- **Card / bank transfer or cash, nothing marked yet** — the customer ("I paid") and the professional ("confirm you received it").
+- **Customer said "I paid"** — only the professional.
+
+As soon as the payment is complete the follow-up stops; if the team was already asked, their ticket gets a note and is
+marked solved. Jobs with an open follow-up stay in the "Upcoming and active" list and count as "needs your action".
+Jobs that ended more than 30 days ago are not chased. Admins with `payments.manage` can run the check immediately:
+`POST /api/v1/payments/admin/follow-up/run`.
+
+Settings: `PAYMENT_REMINDER_GRACE_HOURS` (default 1), `PAYMENT_REMINDER_INTERVAL_HOURS` (default 24).

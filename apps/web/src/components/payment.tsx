@@ -224,3 +224,38 @@ export function PaymentPanel({ job, onUpdated }: { job: any; onUpdated: (j: any)
     </div>
   );
 }
+
+/** Shown on a job whose time is over while the payment is not confirmed: what is missing and what happens next. */
+export function PaymentFollowUp({ job }: { job: any }) {
+  const { t, intl } = useT();
+  const c = job.paymentCheck;
+  if (!c) return null;
+  const amount = money(job.payment?.remainingMinor ?? job.agreedPriceMinor, job.currency, intl);
+  const other = job.viewerRole === 'customer' ? t('the professional') : t('the customer');
+  const ask = c.mine === 'pay' ? t('Please pay {amount} with the button below.', { amount })
+    : c.mine === 'mark_paid' ? t('If you already paid {amount}, tap "I paid" below. If not, please pay the professional now.', { amount })
+    : c.mine === 'confirm' ? (c.waitingFor.customer ? t('No payment is confirmed yet. When you receive {amount}, confirm it below.', { amount }) : t('The customer says they paid. Confirm below once the money arrived.'))
+    : t('We are waiting for {who} and sent them a reminder.', { who: other });
+  const steps: [string, string | null, boolean][] = [
+    [t('Job ended'), c.endsAt, true],
+    [t('Reminder 1'), c.reminder1At ?? null, !!c.reminder1At],
+    [t('Reminder 2'), c.reminder2At ?? c.nextReminderAt ?? null, !!c.reminder2At],
+    [t('The UNRET team checks'), c.escalatedAt ?? c.teamCheckAt ?? null, !!c.escalatedAt],
+  ];
+  return (
+    <div data-testid="payment-follow-up" className="mb-4 space-y-2 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm dark:border-amber-500/40 dark:bg-amber-500/10">
+      <div className="font-semibold text-ink dark:text-white">⏰ {c.stage >= 3 ? t('The UNRET team is checking this payment') : t('The job is over and the payment is not confirmed')}</div>
+      <p className="text-ink-soft dark:text-white/80">{ask}</p>
+      {c.stage >= 3 && <p className="text-xs text-ink-muted">{t('Nobody confirmed the payment after two reminders, so the UNRET team was asked to check. They may contact you. You can still confirm it here at any time.')}</p>}
+      <ol className="space-y-1">
+        {steps.map(([label, at, done]) => (
+          <li key={label} className="flex items-center gap-2 text-xs">
+            <span className={done ? 'text-brand-700 dark:text-brand-300' : 'text-ink-muted'}>{done ? '●' : '○'}</span>
+            <span className="flex-1 text-ink-soft dark:text-white/80">{label}</span>
+            <span className={done ? 'text-ink dark:text-white' : 'text-ink-muted'}>{at ? `${done ? '' : `${t('by')} `}${dateTime(at, intl)}` : '—'}</span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}

@@ -13,11 +13,13 @@ import { EmailChannel } from '../notifications/channels';
 import { NotificationsService } from '../notifications/notifications.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 
-const KINDS = ['question', 'problem', 'contact'] as const;
+const KINDS = ['question', 'problem', 'contact', 'automatic'] as const;
+/** Kinds people can choose ("automatic" tickets are opened by UNRET itself, e.g. payment checks). */
+const PERSON_KINDS = ['question', 'problem', 'contact'] as const;
 const CATEGORIES = ['account', 'payments', 'job', 'technical', 'safety', 'suggestion', 'other'] as const;
 
 class NewTicketDto {
-  @IsIn(KINDS) kind: (typeof KINDS)[number];
+  @IsIn(PERSON_KINDS) kind: (typeof PERSON_KINDS)[number];
   @IsIn(CATEGORIES) category: (typeof CATEGORIES)[number];
   @IsString() @Length(3, 140) subject: string;
   @IsString() @Length(10, 5000) message: string;
@@ -272,7 +274,7 @@ export class SupportService {
     });
     if (!t) throw new NotFoundException('Ticket not found');
     const [job, request, payment] = await Promise.all([
-      t.jobId ? this.prisma.job.findUnique({ where: { id: t.jobId }, select: { id: true, status: true, agreedPriceMinor: true, currency: true, request: { select: { title: true } } } }) : null,
+      t.jobId ? this.prisma.job.findUnique({ where: { id: t.jobId }, select: { id: true, status: true, agreedPriceMinor: true, currency: true, paymentMethod: true, request: { select: { title: true } }, customer: { select: { id: true, name: true, email: true, phone: true } }, professional: { select: { businessName: true, user: { select: { id: true, name: true, email: true, phone: true } } } } } }) : null,
       t.requestId ? this.prisma.serviceRequest.findUnique({ where: { id: t.requestId }, select: { id: true, title: true, status: true } }) : null,
       t.paymentId ? this.prisma.payment.findUnique({ where: { id: t.paymentId }, select: { id: true, status: true, grossMinor: true, currency: true, method: true } }) : null,
     ]);
@@ -454,6 +456,40 @@ export class SupportService {
       });
     }
     return rows.length;
+  }
+
+  /**
+   * A ticket opened by UNRET itself (no person wrote it), e.g. a payment nobody confirmed after the reminders.
+   * The body is the filled-in form; staff see it in the inbox and the problem register.
+   */
+  async createAutomatic(input: { category: (typeof CATEGORIES)[number]; subject: string; body: string; priority?: TicketPriority; jobId?: string; paymentId?: string }) {
+    const t = await this.prisma.supportTicket.create({
+      data: {
+        name: 'UNRET automatic check', kind: 'automatic', category: input.category, subject: input.subject.slice(0, 140), priority: input.priority ?? 'HIGH',
+        jobId: input.jobId ?? null, paymentId: input.paymentId ?? null,
+        messages: { create: { body: input.body, fromStaff: true, internal: true } },
+      },
+    });
+    await this.event(this.prisma, t.id, null, 'created', { to: t.category, note: 'Opened automatically by UNRET' });
+    await this.audit.log({ actorId: null, action: 'support.ticket.create_automatic', entityType: 'SupportTicket', entityId: t.id, metadata: { number: t.number, jobId: input.jobId } });
+    await this.notifyStaff(t, `Automatic check ${this.ref(t.number)}: ${t.subject}`, 'Opened by UNRET — needs someone from the team.');
+    return t;
+  }
+
+  /** Adds a note from UNRET to an automatic ticket and, optionally, marks it solved (e.g. the payment was confirmed later). */
+  async systemNote(ticketId: string, body: string, resolve?: string) {
+    const t = await this.prisma.supportTicket.findUnique({ where: { id: ticketId } });
+    if (!t) return;
+    const now = new Date();
+    await this.prisma.$transaction(async (tx) => {
+      await tx.supportMessage.create({ data: { ticketId, body, fromStaff: true, internal: true } });
+      await this.event(tx, ticketId, null, 'note', { note: body.slice(0, 300) });
+      if (resolve && !['RESOLVED', 'CLOSED'].includes(t.status)) {
+        await tx.supportTicket.update({ where: { id: ticketId }, data: { status: 'RESOLVED', resolvedAt: now, resolutionSummary: t.resolutionSummary ?? resolve } });
+        await this.event(tx, ticketId, null, 'status', { from: t.status, to: 'RESOLVED', note: resolve });
+      }
+    });
+    await this.notifyStaff(t, `Update on ${this.ref(t.number)}`, body.slice(0, 140));
   }
 
   /** In-app + push + email for people with an account; email for guests. */

@@ -729,6 +729,15 @@ model Job {
   scheduledEndAt          DateTime?
   customerConfirmedAt     DateTime?
   professionalConfirmedAt DateTime?
+  /// Payment follow-up after the job's time is over: 0 none, 1 first reminder, 2 second reminder, 3 sent to the UNRET team
+  paymentCheckStage       Int            @default(0)
+  paymentReminder1At      DateTime?
+  paymentReminder2At      DateTime?
+  paymentEscalatedAt      DateTime?
+  /// Support ticket opened for the UNRET team when nobody confirmed the payment
+  paymentTicketId         String?
+  /// When the payment was finally settled after reminders started
+  paymentCheckResolvedAt  DateTime?
   completedAt             DateTime?
   cancelledAt             DateTime?
   cancelledById           String?
@@ -752,6 +761,7 @@ model Job {
 
   @@index([customerId, status])
   @@index([professionalId, status])
+  @@index([paymentCheckStage, paymentCheckResolvedAt])
 }
 
 /// Proposed amendment to price / scope / schedule. Takes effect only when

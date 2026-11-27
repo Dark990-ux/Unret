@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { AlertTriangle, CalendarDays, Check, CreditCard, FileText, MessageSquare, Pencil, Play, Scale, Star, Wallet, X } from 'lucide-react';
 import { Alert, Avatar, Badge, Button, Card, Container, Empty, Field, Input, KeyValue, Modal, PageHeader, PageLoader, Select, StarInput, StatusBadge, Textarea } from '@/components/ui-exports';
 import { RequireAuth } from '@/components/shell';
-import { PaymentPanel } from '@/components/payment';
+import { PaymentFollowUp, PaymentPanel } from '@/components/payment';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { dateTime, fromLocalInput, majorToMinor, money, toLocalInput } from '@/lib/format';
@@ -128,6 +128,7 @@ function JobDetail() {
 
           <Card className="p-5 sm:p-6">
             <h2 className="mb-3 font-semibold text-ink dark:text-white">{t('Payment')}</h2>
+            <PaymentFollowUp job={j} />
             <PaymentPanel job={j} onUpdated={setData} />
           </Card>
 
@@ -201,7 +202,7 @@ function eventLabel(e: any, t: (s: string) => string) {
     DISPUTE_OPENED: 'Dispute opened', DISPUTE_RESOLVED: 'Dispute resolved', AUTO_COMPLETED: 'Completed automatically', ASSIGNED: 'Assigned to team member',
     PAYMENT_RECORDED: 'Payment recorded', PAYMENT_SUCCEEDED: 'Paid through UNRET (held until the job is done)',
     PAYMENT_MARKED_PAID: 'Customer says the payment was sent', PAYMENT_CONFIRMED: 'Professional confirmed receiving the payment',
-    PAYOUT_SENT: 'Payment sent to the professional', PAYMENT_REFUNDED: 'Payment refunded to the customer', PAYMENT_METHOD_CHANGED: 'Payment method changed',
+    PAYOUT_SENT: 'Payment sent to the professional', PAYMENT_REFUNDED: 'Payment refunded to the customer', PAYMENT_METHOD_CHANGED: 'Payment method changed', PAYMENT_REMINDER: 'Payment reminder sent', PAYMENT_ESCALATED: 'Sent to the UNRET team to check the payment', PAYMENT_FOLLOW_UP_CLOSED: 'Payment complete — reminders stopped',
   };
   if (e.type === 'STATUS_CHANGE') return `${t('Status')}: ${t({ ACCEPTED: 'Accepted', SCHEDULED: 'Scheduled', IN_PROGRESS: 'In progress', COMPLETED: 'Completed', CANCELLED: 'Cancelled', DISPUTED: 'Disputed' }[e.toStatus as string] ?? e.toStatus)}`;
   return t(map[e.type] ?? e.type);

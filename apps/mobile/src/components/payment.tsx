@@ -221,3 +221,39 @@ export function PaymentPanel({ job, onUpdated }: { job: any; onUpdated: (j: any)
     </Card>
   );
 }
+
+/** Shown on a job whose time is over while the payment is not confirmed: what is missing and what happens next. */
+export function PaymentFollowUp({ job }: { job: any }) {
+  const th = useTheme();
+  const { t, intl } = useT();
+  const c = job.paymentCheck;
+  if (!c) return null;
+  const amount = money(job.payment?.remainingMinor ?? job.agreedPriceMinor, job.currency, intl);
+  const other = job.viewerRole === 'customer' ? t('the professional') : t('the customer');
+  const ask = c.mine === 'pay' ? t('Please pay {amount} with the button below.', { amount })
+    : c.mine === 'mark_paid' ? t('If you already paid {amount}, tap "I paid" below. If not, please pay the professional now.', { amount })
+    : c.mine === 'confirm' ? (c.waitingFor.customer ? t('No payment is confirmed yet. When you receive {amount}, confirm it below.', { amount }) : t('The customer says they paid. Confirm below once the money arrived.'))
+    : t('We are waiting for {who} and sent them a reminder.', { who: other });
+  const steps: [string, string | null, boolean][] = [
+    [t('Job ended'), c.endsAt, true],
+    [t('Reminder 1'), c.reminder1At ?? null, !!c.reminder1At],
+    [t('Reminder 2'), c.reminder2At ?? c.nextReminderAt ?? null, !!c.reminder2At],
+    [t('The UNRET team checks'), c.escalatedAt ?? c.teamCheckAt ?? null, !!c.escalatedAt],
+  ];
+  return (
+    <View testID="payment-follow-up" style={{ borderWidth: 1, borderColor: th.amber, backgroundColor: 'rgba(245,158,11,0.12)', borderRadius: 14, padding: 12, gap: 8 }}>
+      <Text variant="label">⏰ {c.stage >= 3 ? t('The UNRET team is checking this payment') : t('The job is over and the payment is not confirmed')}</Text>
+      <Text>{ask}</Text>
+      {c.stage >= 3 && <Text variant="small">{t('Nobody confirmed the payment after two reminders, so the UNRET team was asked to check. They may contact you. You can still confirm it here at any time.')}</Text>}
+      <View style={{ gap: 4 }}>
+        {steps.map(([label, at, done]) => (
+          <Row key={label} gap={8} style={{ flexWrap: 'nowrap' }}>
+            <Text style={{ width: 18, color: done ? th.brand : th.muted }}>{done ? '●' : '○'}</Text>
+            <Text variant="small" style={{ flex: 1 }}>{label}</Text>
+            <Text variant="small" style={{ color: done ? th.text : th.muted }}>{at ? `${done ? '' : `${t('by')} `}${dateTime(at, intl)}` : '—'}</Text>
+          </Row>
+        ))}
+      </View>
+    </View>
+  );
+}

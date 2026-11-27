@@ -1,3 +1,4 @@
+import { PaymentChecksService } from './payment-checks.service';
 import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Global, Headers, HttpCode, Inject, Injectable, Module, NotFoundException, Param, Patch, Post, Put, Query, Req } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
@@ -60,6 +61,7 @@ export class PaymentsService {
     private audit: AuditService,
     @Inject(PAYMENT_PROVIDER) private provider: PaymentProvider,
     private subscriptions: SubscriptionsService,
+    private checks: PaymentChecksService,
   ) {}
 
   private async summaryFor(job: { id: string; paymentMethod: string; agreedPriceMinor: number; depositMinor: number }) {
@@ -176,6 +178,7 @@ export class PaymentsService {
       body: `The professional confirmed receiving ${formatMoney(amount, job.currency)} for "${job.request.title}".`,
       data: { jobId, url: `/jobs/${jobId}` },
     });
+    await this.checks.onPaymentChanged(jobId);
     return this.jobs.detail(user, jobId);
   }
 
@@ -240,6 +243,7 @@ export class PaymentsService {
     await this.notifications.notify({ userId: p.job.professional.userId, type: 'PAYMENT_COMPLETED', title: 'The customer paid through UNRET', body: `${formatMoney(p.grossMinor, p.currency)} for "${p.job.request.title}" is held by UNRET and sent to you when the job is completed.`, data: { jobId: p.jobId, url: `/jobs/${p.jobId}` } });
     if (p.job.status === 'COMPLETED') await this.payouts.releaseForJob(p.jobId);
     else if (p.kind === 'DEPOSIT' && p.job.status === 'IN_PROGRESS') await this.payouts.releaseDeposit(p.jobId);
+    await this.checks.onPaymentChanged(p.jobId);
   }
 
   async mockConfirm(user: AuthUser, paymentId: string, outcome: 'succeed' | 'fail') {
@@ -381,7 +385,15 @@ export class PaymentsService {
 @ApiTags('payments')
 @Controller('payments')
 export class PaymentsController {
-  constructor(private payments: PaymentsService) {}
+  constructor(private payments: PaymentsService, private checks: PaymentChecksService) {}
+
+  /** Runs the payment follow-up now (it also runs every hour by itself). */
+  @ApiBearerAuth()
+  @Permission('payments.manage')
+  @Post('admin/follow-up/run')
+  runFollowUp() {
+    return this.checks.sweep();
+  }
 
   @ApiBearerAuth()
   @Get()
@@ -495,6 +507,7 @@ export class PaymentsController {
   providers: [
     PaymentsService,
     PayoutsService,
+    PaymentChecksService,
     MockPaymentProvider,
     {
       provide: PAYMENT_PROVIDER,
@@ -511,6 +524,6 @@ export class PaymentsController {
       },
     },
   ],
-  exports: [PayoutsService, PAYMENT_PROVIDER],
+  exports: [PayoutsService, PaymentChecksService, PAYMENT_PROVIDER],
 })
 export class PaymentsModule {}
